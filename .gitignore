@@ -1,0 +1,72 @@
+# Python 相關檔案
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+
+# 虛擬環境
+.venv/
+venv/
+env/
+ENV/
+
+# 機器學習模型檔案
+*.pth
+*.pkl
+*.h5
+
+# 資料檔案 - 忽略有數字後綴的 CSV 檔案
+*_[0-9]*.csv
+*[0-9].csv
+
+# 完全忽略 result 目錄下所有檔案
+result/
+
+# 忽略 models/training_runs 目錄
+models/training_runs/
+
+# 分析結果檔案
+analysis_results/
+
+# 大型檔案和壓縮檔
+*.zip
+*.tar.gz
+*.7z
+*.rar
+
+# 性能分析和臨時檔案
+*.prof
+*.log
+*.tmp
+.DS_Store
+
+# IDE 和編輯器設定
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# 系統檔案
+Thumbs.db
+.DS_Store
+
+# 暫存檔案
+*.bak
+*.orig
+*.tmp
+*.temp
+
+# 備註：以下檔案會被保留
+# - generated_backlog.csv (沒有數字後綴)
+# - assign_order.csv (沒有數字後綴)
+# - generated_order.csv (沒有數字後綴)
+# - backups/ (備份目錄)
+# - data/input/ (輸入資料) 

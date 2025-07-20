@@ -1,0 +1,9 @@
+{
+  "generation": 1,
+  "best_idx": 0,
+  "best_fitness": -1000000000.0,
+  "all_fitness": [
+    -1000000000.0,
+    -1000000000.0
+  ]
+}

@@ -1,0 +1,39 @@
+{
+    "include": [
+        "ai",
+        "world",
+        "lib", 
+        "evaluation",
+        "utils",
+        "*.py"
+    ],
+    "exclude": [
+        "**/__pycache__",
+        "**/.venv",
+        "**/node_modules",
+        "**/.git"
+    ],
+    "defineConstant": {
+        "DEBUG": true
+    },
+    "reportMissingImports": true,
+    "reportMissingTypeStubs": false,
+    "pythonVersion": "3.8",
+    "pythonPlatform": "Windows",
+    "executionEnvironments": [
+        {
+            "root": ".",
+            "pythonVersion": "3.8",
+            "pythonPlatform": "Windows",
+            "extraPaths": [
+                "./ai",
+                "./world",
+                "./lib",
+                "./evaluation", 
+                "./utils"
+            ]
+        }
+    ],
+    "venvPath": ".venv",
+    "venv": ".venv"
+} 

@@ -1,0 +1,21 @@
+{
+  "controller_type": "nerl",
+  "reward_mode": "global",
+  "start_time": "2025-07-16 23:43:03",
+  "end_time": "2025-07-16 23:47:44",
+  "config": {
+    "generations": 1,
+    "population_size": 1,
+    "evaluation_ticks": 400,
+    "elite_size": 2,
+    "mutation_rate": 0.3,
+    "crossover_rate": 0.7,
+    "mutation_strength": 0.2
+  },
+  "results": {
+    "best_fitness": -0.1400000000000001,
+    "total_generations": 1,
+    "completed_orders_final_eval": 4,
+    "total_energy_final_eval": 158.80240937500017
+  }
+}

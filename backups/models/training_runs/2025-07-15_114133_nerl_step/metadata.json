@@ -1,0 +1,17 @@
+{
+  "controller_type": "nerl",
+  "reward_mode": "step",
+  "start_time": "2025-07-15 11:41:33",
+  "end_time": "2025-07-15 11:49:51",
+  "config": {
+    "generations": 10,
+    "population_size": 10,
+    "evaluation_ticks": 100,
+    "elite_size": 4,
+    "mutation_rate": 0.15
+  },
+  "results": {
+    "best_fitness": -1909.8029496843194,
+    "total_generations": 10
+  }
+}

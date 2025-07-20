@@ -1,0 +1,17 @@
+{
+  "controller_type": "nerl",
+  "reward_mode": "global",
+  "start_time": "2025-07-16 14:31:45",
+  "end_time": "2025-07-16 14:38:40",
+  "config": {
+    "generations": 2,
+    "population_size": 2,
+    "evaluation_ticks": 500,
+    "elite_size": 4,
+    "mutation_rate": 0.15
+  },
+  "results": {
+    "best_fitness": -1000000000.0,
+    "total_generations": 2
+  }
+}
