@@ -34,13 +34,13 @@ class EvolvableNetwork(nn.Module):
         super(EvolvableNetwork, self).__init__()
         self.device = device
         
-        # 簡化的統一架構 (V-Final)
+        # 增強版架構 - 更強的表達能力
         self.layers = nn.Sequential(
-            nn.Linear(state_size, 64),
+            nn.Linear(state_size, 128),
             nn.ReLU(),
-            nn.Linear(64, 32),
+            nn.Linear(128, 64),
             nn.ReLU(),
-            nn.Linear(32, action_size)
+            nn.Linear(64, action_size)
         )
         self.to(self.device)
 
@@ -481,12 +481,12 @@ class NEController(TrafficController):
             # 如果我們有記錄這個交叉口的最後方向，就使用它
             # 否則，默認為水平方向
             return self.intersection_last_directions.get(intersection_id, "Horizontal")
-        elif action == 1:  # 垂直
-            self.intersection_last_directions[intersection_id] = "Vertical"
-            return "Vertical"
-        else:  # 水平 (action == 2)
+        elif action == 1:  # 切換到水平
             self.intersection_last_directions[intersection_id] = "Horizontal"
             return "Horizontal"
+        else:  # 切換到垂直 (action == 2)
+            self.intersection_last_directions[intersection_id] = "Vertical"
+            return "Vertical"
     
     def _check_neighboring_congestion(self, intersection, warehouse):
         """
@@ -773,7 +773,7 @@ class NEController(TrafficController):
                         
                         # 其他指標
                         "spillback_penalty_total": episode_summary.get('spillback_penalty_total', 0.0),
-                        "signal_switch_count": episode_summary.get('switch_count', 0),
+                        "signal_switch_count": episode_summary.get('signal_switch_count', 0),
                         "total_reward": episode_summary.get('total_reward', 0.0)
                     }
                 

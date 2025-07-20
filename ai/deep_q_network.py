@@ -69,13 +69,13 @@ class DeepQNetwork:
         Returns:
             nn.Module: Q網絡模型
         """
-        # 簡化的統一架構 (V-Final)
+        # 增強版架構 - 更強的表達能力
         model = nn.Sequential(
-            nn.Linear(self.state_size, 64),
+            nn.Linear(self.state_size, 128),
             nn.ReLU(),
-            nn.Linear(64, 32),
+            nn.Linear(128, 64),
             nn.ReLU(),
-            nn.Linear(32, self.action_size)
+            nn.Linear(64, self.action_size)
         )
         return model
     

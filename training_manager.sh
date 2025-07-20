@@ -397,10 +397,10 @@ show_main_menu() {
     echo -e "${GREEN}訓練任務選項:${NC}"
     echo "  [1] DQN Step Reward (1.6M Ticks)"
     echo "  [2] DQN Global Reward (1.6M Ticks)"
-    echo "  [3] NERL Step Reward A (20 workers)"
-    echo "  [4] NERL Global Reward A (20 workers)"
-    echo "  [5] NERL Step Reward B (20 workers)"
-    echo "  [6] NERL Global Reward B (20 workers)"
+    echo "  [3] NERL Step Reward A (30 gen, 20 pop, 8 workers)"
+    echo "  [4] NERL Global Reward A (30 gen, 20 pop, 8 workers)"
+    echo "  [5] NERL Step Reward B (30 gen, 20 pop, 8 workers)"
+    echo "  [6] NERL Global Reward B (30 gen, 20 pop, 8 workers)"
     echo ""
     echo -e "${BLUE}任務管理選項:${NC}"
     echo "  [7] 查看任務輸出"
@@ -436,16 +436,16 @@ main() {
                 start_training "dqn_global" "python train.py --agent dqn --reward_mode global --log_level DEBUG --training_ticks 1600000"
                 ;;
             3)
-                start_training "nerl_step_a" "python train.py --agent nerl --reward_mode step --log_level DEBUG --variant a --generations 40 --population 10 --eval_ticks 4000 --parallel_workers 12"
+                start_training "nerl_step_a" "python train.py --agent nerl --reward_mode step --log_level INFO --variant a --generations 30 --population 20 --eval_ticks 3000 --parallel_workers 15"
                 ;;
             4)
-                start_training "nerl_global_a" "python train.py --agent nerl --reward_mode global --log_level DEBUG --variant a --generations 40 --population 10 --eval_ticks 4000 --parallel_workers 12"
+                start_training "nerl_global_a" "python train.py --agent nerl --reward_mode global --log_level INFO --variant a --generations 30 --population 20 --eval_ticks 3000 --parallel_workers 15"
                 ;;
             5)
-                start_training "nerl_step_b" "python train.py --agent nerl --reward_mode step --log_level DEBUG --variant b --generations 40 --population 10 --eval_ticks 4000 --parallel_workers 12"
+                start_training "nerl_step_b" "python train.py --agent nerl --reward_mode step --log_level INFO --variant b --generations 30 --population 20 --eval_ticks 3000 --parallel_workers 15"
                 ;;
             6)
-                start_training "nerl_global_b" "python train.py --agent nerl --reward_mode global --log_level DEBUG --variant b --generations 40 --population 10 --eval_ticks 4000 --parallel_workers 12"
+                start_training "nerl_global_b" "python train.py --agent nerl --reward_mode global --log_level INFO --variant b --generations 30 --population 20 --eval_ticks 3000 --parallel_workers 15"
                 ;;
             7)
                 view_task_output

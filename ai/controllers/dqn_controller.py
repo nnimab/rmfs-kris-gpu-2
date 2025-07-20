@@ -386,10 +386,10 @@ class DQNController(TrafficController):
         # 將動作轉換為方向
         if action == 0:  # 保持當前方向
             return intersection.allowed_direction if intersection.allowed_direction else "Horizontal"
-        elif action == 1:  # 垂直方向
-            return "Vertical"
-        else:  # 水平方向
+        elif action == 1:  # 切換到水平方向
             return "Horizontal"
+        else:  # 切換到垂直方向 (action == 2)
+            return "Vertical"
 
     def action_to_direction(self, action, intersection_id):
         """
