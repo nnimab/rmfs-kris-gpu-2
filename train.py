@@ -385,6 +385,16 @@ def run_nerl_training(generations, population_size, evaluation_ticks, reward_mod
     for gen in range(generations):
         logger.info(f"\n--- Generation {gen + 1}/{generations} ---")
         
+        # 第一代時報告訂單狀態
+        if gen == 0:
+            # 建立臨時倉庫來檢查訂單數量
+            temp_warehouse = netlogo.setup()
+            if temp_warehouse:
+                logger.info(f"Initial order status for NERL training:")
+                logger.info(f"  - Backlog orders loaded: {len([o for o in temp_warehouse.order_manager.orders if o.id < 0])}")
+                logger.info(f"  - Total orders in system: {len(temp_warehouse.order_manager.orders)}")
+                del temp_warehouse
+        
         # --- 【修改點 2：將 log_file_path 和 nerl_params 加入到任務參數中】 ---
         # 準備並行任務所需的參數列表
         tasks = [
@@ -570,6 +580,11 @@ def run_dqn_training(training_ticks, reward_mode="step", training_dir=None, log_
     # 檢查日誌級別，只有在 INFO 或更低級別時才顯示訓練開始訊息
     if logger and logger.isEnabledFor(logging.INFO):
         logger.info("Starting DQN training loop...")
+        # 報告初始訂單狀態
+        logger.info(f"Initial order status:")
+        logger.info(f"  - Total orders in system: {len(warehouse.order_manager.orders)}")
+        logger.info(f"  - Unfinished orders: {len(warehouse.order_manager.unfinished_orders)}")
+        logger.info(f"  - Job queue length: {len(warehouse.job_queue)}")
     
     # 死鎖檢測變數
     no_movement_ticks = 0
@@ -637,7 +652,13 @@ def run_dqn_training(training_ticks, reward_mode="step", training_dir=None, log_
                 logger.warning(f"WARNING: System appears to be deadlocked!")
                 logger.warning(f"  - No robot movement for {no_movement_ticks} ticks")
                 logger.warning(f"  - Completed orders: {current_completed_orders}")
-                logger.warning(f"  - Total orders: {len(warehouse.job_manager.jobs)}")
+                # 正確報告訂單數量
+                total_orders = len(warehouse.order_manager.orders)
+                unfinished_orders = len(warehouse.order_manager.unfinished_orders)
+                finished_orders = len(warehouse.order_manager.finished_orders)
+                logger.warning(f"  - Total orders loaded: {total_orders}")
+                logger.warning(f"  - Finished orders: {finished_orders}")
+                logger.warning(f"  - Unfinished orders: {unfinished_orders}")
                 
                 # 顯示每個路口的等待情況
                 total_waiting = 0
@@ -665,8 +686,15 @@ def run_dqn_training(training_ticks, reward_mode="step", training_dir=None, log_
                 else:
                     # 對於 step 模式，給更多機會恢復
                     if no_movement_ticks >= deadlock_threshold * 3:  # 1500 ticks
-                        logger.error(f"Ending training due to prolonged deadlock (1500 ticks)")
-                        break
+                        # 檢查是否還有未完成訂單或工作
+                        if unfinished_orders == 0 and len(warehouse.job_queue) == 0:
+                            logger.info(f"All orders completed! Training ended successfully.")
+                            logger.info(f"Final statistics: {finished_orders} orders completed")
+                            break
+                        else:
+                            logger.error(f"Ending training due to prolonged deadlock (1500 ticks)")
+                            logger.error(f"Still have {unfinished_orders} unfinished orders and {len(warehouse.job_queue)} jobs in queue")
+                            break
                     else:
                         logger.warning(f"  - Giving system more time to recover...")
                         # 可以考慮增加 epsilon 來增加探索

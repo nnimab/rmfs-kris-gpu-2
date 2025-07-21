@@ -127,7 +127,8 @@ def _create_process_specific_files(process_id: int):
     file_mappings = {
         'data/output/generated_pod.csv': f'data/output/generated_pod_{process_id}.csv',
         'data/output/generated_order.csv': f'data/output/generated_order_{process_id}.csv',
-        'data/output/pods.csv': f'data/output/pods_{process_id}.csv'
+        'data/output/pods.csv': f'data/output/pods_{process_id}.csv',
+        'data/input/assign_order.csv': f'data/input/assign_order_{process_id}.csv'
     }
     
     for master_file, process_file in file_mappings.items():

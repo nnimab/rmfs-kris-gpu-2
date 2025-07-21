@@ -12,7 +12,8 @@
       "Bash(find:*)",
       "Bash(git config:*)",
       "Bash(git add:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(head:*)"
     ],
     "deny": []
   }
