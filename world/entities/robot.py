@@ -808,6 +808,8 @@ class Robot(Object):
         self.updateState("taking_pod", self.latest_tick)
         # 作業類型一：抓取pod
         self.job.job_state = "take_pod"
+        # 設置移動到貨架位置
+        self.setMoveToTakePod()
 
     def assignJobAndSetToStation(self, job: Job):
         self.job = job

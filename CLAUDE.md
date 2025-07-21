@@ -281,3 +281,61 @@ python train.py --agent nerl --reward_mode step --generations 5 --population 10 
 - 限速功能開始被學習使用
 - 更穩定的訓練過程
 - 更好的訂單完成率
+
+## 2025/07/21 晚上更新 - 重要問題修復
+
+### 1. DQN 死鎖問題診斷
+**問題現象**：
+- DQN 訓練在 5250 ticks 死鎖
+- 路口 30 等待超過 655 ticks
+- 20 個機器人全部卡住
+- Final Epsilon: 1.0（完全隨機探索）
+
+**死鎖原因**：
+- V7 的 6 動作空間 + epsilon=1.0 完全隨機 = 災難
+- 關鍵路口（特別是路口 30）成為瓶頸
+
+### 2. 機器人直衝揀貨台 Bug
+**問題發現**：
+- 機器人收到任務後沒有去取貨架
+- 直接衝向揀貨台造成嚴重堵塞
+
+**問題根源**：
+```python
+# robot.py 第 806 行（修復前）
+def assignJobAndSetToTakePod(self, job: Job):
+    self.job = job
+    self.updateState("taking_pod", self.latest_tick)
+    self.job.job_state = "take_pod"
+    # 缺少：self.setMoveToTakePod()
+```
+
+**修復**：
+- 在 `assignJobAndSetToTakePod()` 中加入 `self.setMoveToTakePod()`
+- 確保機器人先移動到貨架位置
+
+### 3. NetLogo 除錯訊息問題
+**問題**：大量 DEBUG 訊息干擾訓練觀察
+
+**修復**：
+- 註釋掉 `netlogo.py` 中的所有 `print("DEBUG: ...")` 語句
+- 現在 `--log_level` 參數能正確控制輸出
+
+### 4. 機器人數量優化
+**修改**：30 → 20 個機器人
+- 檔案：`lib/generator/warehouse_generator.py:22`
+- 理由：減少擁堵，提高學習效率
+
+### 5. NetLogo + train.py 使用說明
+**正確流程**：
+```bash
+python train.py --agent dqn --reward_mode step --netlogo --training_ticks 10000
+# 等待 NetLogo 開啟
+# 在終端機按 Enter（不要在 NetLogo 操作）
+# Python 會自動控制一切
+```
+
+### 重要提醒
+- 這些修復對 DQN 和 NERL 訓練都有幫助
+- 建議先用較小參數測試系統穩定性
+- V7 系統的 6 動作空間需要更謹慎的探索策略

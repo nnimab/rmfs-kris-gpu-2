@@ -48,20 +48,20 @@ def setup():
 
 def tick():
     try:
-        print("DEBUG: Loading state...")
+        # print("DEBUG: Loading state...")
         # print("========tick========")
 
         # Load the simulation state
         with open('netlogo.state', 'rb') as file:
             warehouse: Warehouse = pickle.load(file)
-        print("DEBUG: State loaded.")
+        # print("DEBUG: State loaded.")
 
         # Check Robot debug level before printing
         from world.entities.robot import Robot
         if Robot.DEBUG_LEVEL > 1:
             print("before tick", warehouse._tick)
 
-        print("DEBUG: Collecting time series data...")
+        # print("DEBUG: Collecting time series data...")
         # Update each object with the current warehouse context
 
         # 收集時間序列數據
@@ -77,25 +77,25 @@ def tick():
             
         # 嘗試收集時間序列數據
         performance_reporter.collect_time_series_data()
-        print("DEBUG: Time series data collected.")
+        # print("DEBUG: Time series data collected.")
 
-        print("DEBUG: Starting warehouse tick...")
+        # print("DEBUG: Starting warehouse tick...")
 
         # Perform a simulation tick
         warehouse.tick()
-        print("DEBUG: Warehouse tick finished.")
+        # print("DEBUG: Warehouse tick finished.")
 
-        print("DEBUG: Generating results...")
+        # print("DEBUG: Generating results...")
 
         # Generate results after the tick
         next_result = warehouse.generateResult()
-        print("DEBUG: Results generated.")
+        # print("DEBUG: Results generated.")
 
-        print("DEBUG: Saving state...")
+        # print("DEBUG: Saving state...")
 
         with open('netlogo.state', 'wb') as config_dictionary_file:
             pickle.dump(warehouse, config_dictionary_file)
-        print("DEBUG: State saved.")
+        # print("DEBUG: State saved.")
 
         return [next_result, warehouse.total_energy, len(warehouse.job_queue), warehouse.stop_and_go,
                 warehouse.total_turning, warehouse._tick]
