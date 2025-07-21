@@ -178,7 +178,7 @@ class ControllerEvaluator:
             # 計算機器人利用率（基於時間的真正利用率）
             total_robots = 0
             total_utilization = 0.0
-            current_tick = warehouse.current_tick
+            current_tick = warehouse._tick
             
             for obj in warehouse.getMovableObjects():
                 if obj.object_type == "robot":
@@ -210,6 +210,21 @@ class ControllerEvaluator:
             avg_congestion = np.mean(intersection_congestion) if intersection_congestion else 0
             max_congestion = max(intersection_congestion) if intersection_congestion else 0
             
+            # 計算信號切換總數
+            total_signal_switches = 0
+            for intersection in warehouse.intersection_manager.intersections:
+                if hasattr(intersection, 'signal_switch_count'):
+                    total_signal_switches += intersection.signal_switch_count
+            
+            # 計算平均交通流量率
+            traffic_rates = []
+            for intersection in warehouse.intersection_manager.intersections:
+                if hasattr(intersection, 'getAverageTrafficRate'):
+                    rate = intersection.getAverageTrafficRate(warehouse._tick)
+                    if rate > 0:
+                        traffic_rates.append(rate)
+            avg_traffic_rate = np.mean(traffic_rates) if traffic_rates else 0
+            
             result = {
                 'controller_name': controller_name,
                 'run_id': run_id,
@@ -234,6 +249,10 @@ class ControllerEvaluator:
                 'robot_utilization': robot_utilization,
                 'avg_intersection_congestion': avg_congestion,
                 'max_intersection_congestion': max_congestion,
+                
+                # 交通控制指標
+                'signal_switch_count': total_signal_switches,
+                'avg_traffic_rate': avg_traffic_rate,
                 
                 # 其他指標
                 'stop_and_go_events': getattr(warehouse, 'stop_and_go', 0),

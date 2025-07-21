@@ -12,13 +12,17 @@ class UnifiedRewardSystem:
     
     def __init__(self, reward_mode="step", weights=None):
         """
-        初始化統一獎勵系統 - V6.0 改進版本
+        初始化統一獎勵系統 - V7.0 增強版本
         
         Args:
             reward_mode (str): 獎勵模式，"step"為改進的即時獎勵，"global"為全局獎勵
             weights (dict): 各維度獎勵的權重配置
         """
         self.reward_mode = reward_mode
+        
+        # V7.0: 定義關鍵路口（通往主幹道的入口）
+        self.critical_intersections = [0, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60]
+        self.critical_weight = 2.0  # 降低關鍵路口權重，避免過度優化
         
         # V5.1 權重結構 - 結構性手術修復
         default_weights = {
@@ -187,15 +191,16 @@ class UnifiedRewardSystem:
         total_reward = pass_reward - wait_time_cost - switch_cost
         return max(-1.0, min(1.0, total_reward))  # Clip
     
-    def calculate_step_reward_hybrid(self, intersection, passed_robots, waiting_robots, signal_switched, tick) -> float:
+    def calculate_step_reward_v7(self, intersection, passed_robots, waiting_robots, signal_switched, tick, speed_limit_active=False) -> float:
         """
-        V6.0: 混合式Step獎勵 - 結合絕對值獎勵與相對改善獎勵
+        V7.0: 增強Step獎勵 - 加入關鍵路口權重、能源效率和限速控制
         
-        公式：R_final = 0.5 * R_current + 0.5 * R_improvement
-        
-        其中：
-        - R_current: 原有的絕對值獎勵
-        - R_improvement: 相對改善獎勵 (0.4*Rw + 0.2*Ra + 0.2*Re + 0.2*Rq)
+        特點：
+        - 關鍵路口5倍權重
+        - 能源效率獎勵
+        - 限速控制獎勵
+        - 擁堵管理機制
+        - 10倍信號放大
         
         Args:
             intersection: 交叉路口對象
@@ -203,123 +208,94 @@ class UnifiedRewardSystem:
             waiting_robots: 等待的機器人列表
             signal_switched: 是否發生信號切換
             tick: 當前時間步
+            speed_limit_active: 是否啟用限速
             
         Returns:
-            float: 混合獎勵值
+            float: 增強獎勵值
         """
-        intersection_id = id(intersection)
+        # 1. 獲取路口權重
+        intersection_weight = self.critical_weight if intersection.id in self.critical_intersections else 1.0
         
-        # 1. 計算現有絕對值獎勵
-        R_current = self.calculate_step_reward(intersection, passed_robots, waiting_robots, signal_switched)
+        # 2. 流通獎勵（考慮權重）
+        flow_reward = 0
+        energy_bonus = 0
+        order_completion_bonus = 0
         
-        # 2. 計算當前指標
-        # 等待時間
-        current_avg_wait = 0
-        if waiting_robots:
-            wait_times = []
-            for robot in waiting_robots:
-                if hasattr(robot, 'current_intersection_start_time') and robot.current_intersection_start_time is not None:
-                    wait_time = tick - robot.current_intersection_start_time
-                    wait_times.append(wait_time)
-            current_avg_wait = sum(wait_times) / max(len(wait_times), 1) if wait_times else 0
-        
-        # 能源消耗（本步驟通過的機器人能源）
-        current_energy = sum(getattr(r, 'current_tick_energy', 0) for r in passed_robots)
-        
-        # 排隊長度（從倉庫獲取）
-        current_queue = 0
-        if self.warehouse:
-            current_queue = getattr(self.warehouse, 'picking_station_queue_length', 0)
-        
-        # 3. 獲取歷史數據（如果沒有，使用當前值作為基準）
-        prev_data = self.previous_metrics.get(intersection_id, {
-            'avg_wait': current_avg_wait,
-            'energy': current_energy,
-            'queue': current_queue
-        })
-        
-        # 4. 計算相對改善獎勵
-        # Rw: 等待時間改善（40%）
-        Rw = 1.0 if current_avg_wait < prev_data['avg_wait'] else -1.0
-        
-        # Ra: 切換懲罰（20%）
-        Ra = -1.0 if signal_switched else 0.0
-        
-        # Re: 能源效率改善（20%）
-        Re = 1.0 if current_energy < prev_data['energy'] else -1.0
-        
-        # Rq: 排隊長度改善（20%）
-        Rq = 1.0 if current_queue < prev_data['queue'] else -1.0
-        
-        # 相對改善總分（提高全局改善權重）
-        R_improvement = 0.2 * Rw + 0.1 * Ra + 0.3 * Re + 0.4 * Rq  # 更重視排隊和能源
-        
-        # 5. 混合獎勵（降低原始獎勵權重）
-        R_final = 0.3 * R_current + 0.7 * R_improvement  # 更重視相對改善
-        
-        # 6. 新增：進度獎勵（鼓勵任何正向行為）
-        progress_bonus = 0.0
-        if len(passed_robots) > 0:
-            # 鼓勵機器人移動
-            progress_bonus += 0.1 * len(passed_robots)
+        for robot in passed_robots:
+            # 基礎通過獎勵
+            priority = get_robot_task_priority(robot)
+            base_reward = self.weights[f'pass_{priority}_priority']
             
-            # 特別獎勵運送任務的機器人
-            delivering_count = sum(1 for r in passed_robots if getattr(r, 'current_state', '') == 'delivering_pod')
-            progress_bonus += 0.2 * delivering_count
+            # V7.1: 訂單完成獎勵 - 簡化版本
+            if hasattr(robot, 'current_state') and robot.current_state == "delivering_pod":
+                # 正在運送貨物的機器人給予額外獎勵
+                order_completion_bonus += 2.0 * intersection_weight
+            
+            # 能源效率加成
+            if hasattr(robot, 'velocity'):
+                # 低速通過獎勵（節能）
+                if robot.velocity < 2.0:  # 假設最大速度約3.0
+                    energy_bonus += 0.2
+            
+            if hasattr(robot, 'current_tick_energy'):
+                # 低能耗獎勵
+                if robot.current_tick_energy < 5.0:  # 低於平均能耗
+                    energy_bonus += 0.3
+            
+            flow_reward += base_reward * intersection_weight
         
-        R_final += progress_bonus
+        # 3. 等待成本（非關鍵路口減少懲罰）
+        wait_cost = 0
+        for robot in waiting_robots:
+            priority = get_robot_task_priority(robot)
+            base_cost = self.weights[f'wait_time_cost_{priority}_priority']
+            # 非關鍵路口等待成本減半
+            if intersection_weight == 1.0:
+                base_cost *= 0.5
+            wait_cost += base_cost
         
-        # 6. 更新歷史記錄
-        self.previous_metrics[intersection_id] = {
-            'avg_wait': current_avg_wait,
-            'energy': current_energy,
-            'queue': current_queue
-        }
+        # 4. 切換成本（關鍵路口減少懲罰）
+        switch_cost = self.weights['switch_penalty'] if signal_switched else 0
+        if intersection_weight > 1:
+            switch_cost *= 0.5  # 關鍵路口切換懲罰減半
         
-        # V6.0: 詳細調試輸出 - 確保所有數值正確
-        debug_info = {
-            'intersection_id': intersection_id,
-            'tick': tick,
-            'R_current': R_current,
-            'R_improvement': R_improvement,
-            'R_final': R_final,
-            'current_avg_wait': current_avg_wait,
-            'current_energy': current_energy,
-            'current_queue': current_queue,
-            'prev_avg_wait': prev_data['avg_wait'],
-            'prev_energy': prev_data['energy'],
-            'prev_queue': prev_data['queue'],
-            'Rw': Rw,
-            'Ra': Ra,
-            'Re': Re,
-            'Rq': Rq,
-            'signal_switched': signal_switched,
-            'passed_robots_count': len(passed_robots),
-            'waiting_robots_count': len(waiting_robots)
-        }
+        # 5. 揀貨站擁堵管理獎勵
+        congestion_bonus = 0
+        if self.warehouse and hasattr(self.warehouse, 'picking_station_queue_length'):
+            queue_length = self.warehouse.picking_station_queue_length
+            if queue_length > 5:
+                # 擁堵時獎勵讓低優先級機器人等待
+                low_priority_waiting = sum(1 for r in waiting_robots 
+                                         if get_robot_task_priority(r) == 'low')
+                congestion_bonus = low_priority_waiting * 0.3
         
-        # 每10步輸出一次調試信息（更頻繁以便觀察）
-        if tick % 10 == 0:
-            print(f"[Hybrid Reward Debug] Tick {tick}, Intersection {intersection_id}: "
-                  f"R_final={R_final:.3f} (Current={R_current:.3f} + Improvement={R_improvement:.3f})")
-            print(f"  Metrics: wait={current_avg_wait:.1f}({prev_data['avg_wait']:.1f}), "
-                  f"energy={current_energy:.1f}({prev_data['energy']:.1f}), "
-                  f"queue={current_queue}({prev_data['queue']})")
-            print(f"  Rewards: Rw={Rw}, Ra={Ra}, Re={Re}, Rq={Rq}, "
-                  f"switch={signal_switched}, passed={len(passed_robots)}, waiting={len(waiting_robots)}")
+        # 6. 限速控制獎勵
+        speed_control_bonus = 0
+        if speed_limit_active:
+            # 如果啟用限速且揀貨站擁堵，給予獎勵
+            if self.warehouse and self.warehouse.picking_station_queue_length > 5:
+                speed_control_bonus = 1.0
+                # 額外獎勵：如果限速期間能源消耗降低
+                avg_energy = sum(getattr(r, 'current_tick_energy', 0) for r in passed_robots) / max(len(passed_robots), 1)
+                if avg_energy < 3.0:
+                    speed_control_bonus += 0.5
         
-        # 檢查異常值
-        if abs(R_final) > 10:
-            print(f"[WARNING] Abnormal reward value: {R_final:.3f} at tick {tick}")
-            print(f"  Debug info: {debug_info}")
+        # 7. 總獎勵計算（降低放大倍數，避免過度波動）
+        total_reward = (flow_reward + energy_bonus + order_completion_bonus + congestion_bonus + speed_control_bonus - wait_cost - switch_cost) * 5
         
-        # 檢查是否有NaN或inf
-        if not (-10 <= R_final <= 10):
-            print(f"[ERROR] Invalid reward value: {R_final} at tick {tick}")
-            print(f"  Debug info: {debug_info}")
-            R_final = 0.0  # 安全回復
+        # 8. 調試輸出（每100步輸出關鍵路口）
+        if tick % 100 == 0 and intersection.id in self.critical_intersections:
+            print(f"[V7 Reward] Tick {tick}, Critical Intersection {intersection.id}:")
+            print(f"  Flow: {flow_reward:.2f} (weight={intersection_weight}), Energy: {energy_bonus:.2f}")
+            print(f"  Congestion: {congestion_bonus:.2f}, Speed Control: {speed_control_bonus:.2f}")
+            print(f"  Total: {total_reward:.2f}")
         
-        return R_final
+        return total_reward
+    
+    def calculate_step_reward_hybrid(self, intersection, passed_robots, waiting_robots, signal_switched, tick) -> float:
+        """V6.0 保留以便向後兼容"""
+        # 直接調用V7版本
+        return self.calculate_step_reward_v7(intersection, passed_robots, waiting_robots, signal_switched, tick, False)
     
     def calculate_global_reward(self, warehouse, episode_ticks: int) -> float:
         """
@@ -417,13 +393,18 @@ class UnifiedRewardSystem:
             
             self.previous_directions[intersection_id] = current_direction
             
-            # V6.0: Step 模式現在默認使用改進的混合式獎勵
-            step_reward = self.calculate_step_reward_hybrid(intersection, passed_robots, waiting_robots, signal_switched, tick)
+            # V7.0: 使用增強版獎勵系統
+            # 檢查是否有限速動作（從kwargs獲取）
+            speed_limit_active = kwargs.get('speed_limit_active', False)
+            
+            step_reward = self.calculate_step_reward_v7(intersection, passed_robots, waiting_robots, 
+                                                       signal_switched, tick, speed_limit_active)
             
             # 啟動時輸出一次確認消息
-            if not hasattr(self, '_hybrid_confirmed'):
-                print(f"[V6.0] Using improved hybrid step reward at tick {tick}")
-                self._hybrid_confirmed = True
+            if not hasattr(self, '_v7_confirmed'):
+                print(f"[V7.0] Using enhanced step reward with critical intersection weighting at tick {tick}")
+                print(f"[V7.0] Critical intersections: {self.critical_intersections}")
+                self._v7_confirmed = True
             
             # 更新統計數據
             self._update_episode_stats(step_reward, intersection, tick)
@@ -492,7 +473,7 @@ class UnifiedRewardSystem:
         # 計算機器人利用率（基於時間的真正利用率）
         total_robots = 0
         total_utilization = 0.0
-        current_tick = warehouse.current_tick
+        current_tick = warehouse._tick
         total_wait_time = 0.0
         max_wait_time = 0.0
         
@@ -566,9 +547,9 @@ class UnifiedRewardSystem:
         # 更新平均交通流量率（從 intersection 物件獲取）
         traffic_rates = []
         for intersection in warehouse.intersection_manager.intersections:
-            if hasattr(intersection, 'calculateAverageFlow'):
+            if hasattr(intersection, 'getAverageTrafficRate'):
                 try:
-                    flow_rate = intersection.calculateAverageFlow(warehouse._tick)
+                    flow_rate = intersection.getAverageTrafficRate(warehouse._tick)
                     if flow_rate > 0:
                         traffic_rates.append(flow_rate)
                 except:

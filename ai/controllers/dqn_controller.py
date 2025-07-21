@@ -22,7 +22,7 @@ class DQNController(TrafficController):
     可以適應不同交通模式並優化控制決策
     """
     
-    def __init__(self, min_green_time=1, bias_factor=1.5, state_size=17, action_size=3, 
+    def __init__(self, min_green_time=1, bias_factor=1.5, state_size=17, action_size=6, 
                  max_wait_threshold=50, model_name=None, reward_mode="step", 
                  training_dir=None, log_file_path=None, batch_size=8192, memory_size=50000, **kwargs):
         """

@@ -83,13 +83,13 @@ python check_system.py
 - **狀態空間**：8 維標準化狀態（方向、等待時間、隊列長度、優先級比例等）
 - **動作空間**：3 個動作（保持、切換到水平、切換到垂直）
 - **獎勵函數**：統一獎勵系統，考慮等待時間減少、能源消耗、停止-前進次數、通過機器人數
-- **神經網路**：3 層 MLP（8→24→24→3）
+- **神經網路**：3 層 MLP（17→128→64→3）- 2025/07/20 增強架構
 
 #### NERL 控制器
-- **進化機制**：種群大小 40，菁英保留 8，錦標賽選擇
+- **進化機制**：種群大小 20（建議），菁英保留比例 0.2，錦標賽選擇
 - **適應度函數**：基於累積獎勵的平均值
 - **進化間隔**：每 15 ticks 進化一次
-- **網路架構**：與 DQN 相同的 3 層 MLP
+- **網路架構**：與 DQN 相同的 3 層 MLP（17→128→64→3）
 
 ### 3. 統一獎勵系統
 
@@ -165,3 +165,119 @@ python check_system.py
 3. **路徑問題**：在 WSL 環境下注意 Windows 和 Linux 路徑差異
 4. **並行執行**：實驗管理系統支援多線程，注意系統資源
 5. **繁體中文**：所有用戶交互、註釋和文檔保持繁體中文
+
+## 2025/07/20 更新記錄
+
+### DQN 訓練數據記錄增強
+- 新增 `training_history.json` 自動記錄訓練過程
+- 每 500 步保存檢查點（epsilon、loss、Q值、完成率）
+- 每 1000 步保存 episode 總結（動作分布、系統指標）
+- 新增 `dqn_training_visualizer.py` 用於訓練曲線視覺化
+
+### 神經網路架構增強
+- 原架構：17→64→32→3（3,331 參數）
+- 新架構：17→128→64→3（11,011 參數）
+- 提供更強的表達能力，適合學習複雜交通模式
+
+### NERL 訓練參數優化
+- 族群大小：10 → 20（避免過早收斂）
+- 並行 workers：根據硬體調整（建議 8-15）
+- 評估 ticks：3000（平衡訓練時間與評估品質）
+
+### 修復問題
+- 修正 NERL `signal_switch_count` 記錄欄位名稱
+- 統一 DQN/NERL 動作編碼（1=水平，2=垂直）
+
+## 2025/07/20 晚上更新 - 交通統計收集問題修復
+
+### 發現的問題
+訓練結果顯示所有交通統計都是 0：
+- `avg_wait_time = 0`
+- `signal_switch_count = 0`
+- `total_stop_go_events = 0`
+- `avg_traffic_rate = 0`
+
+### 問題根源
+1. **NERL/DQN 訓練缺少統計更新**：訓練過程沒有調用 `update_system_metrics()`
+2. **方法名稱錯誤**：`unified_reward_system.py` 尋找 `calculateAverageFlow()` 但實際方法是 `getAverageTrafficRate()`
+3. **evaluate.py 缺少指標收集**：沒有收集 `signal_switch_count` 和 `avg_traffic_rate`
+
+### 已修復
+1. ✅ `ai/unified_reward_system.py:569` - 修正方法名稱為 `getAverageTrafficRate()`
+2. ✅ `train.py:157-160` - NERL 訓練加入 `update_system_metrics()` 和 `update_episode_metrics()`
+3. ✅ `train.py:661-665` - DQN 訓練加入相同的統計更新
+4. ✅ `evaluate.py:213-255` - 加入 signal_switch_count 和 avg_traffic_rate 的收集邏輯
+
+### 重要提醒
+- 重新訓練前請確保這些修改都已生效
+- 現在訓練結果應該會正確顯示所有交通統計數據
+
+## 2025/07/21 - V7.0 系統重大更新
+
+### V7.0 核心改進
+1. **關鍵路口權重系統**
+   - 識別 11 個關鍵路口：[0, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60]
+   - 初始 5x 權重，後降至 2x（避免過度優化）
+   - 實現位置：`ai/unified_reward_system.py`
+
+2. **限速控制系統**
+   - 動作空間從 3 擴展到 6
+   - 新增動作：限速 30%、50%、取消限速
+   - 能源消耗 ∝ 速度^1.5
+   - 新增檔案：`world/speed_limit_manager.py`
+
+3. **走廊級限速設計**
+   - 整條走廊限速，而非單一路口
+   - 支援水平/垂直走廊獨立控制
+   - 自動應用到走廊上的所有機器人
+
+### 訓練問題診斷與修復
+
+#### 問題 1：NERL 不做決策（100% Keep）
+- **原因**：網路初始化導致所有輸出為 0
+- **修復**：
+  - 重寫 `EvolvableNetwork` 初始化
+  - 輸出層使用 uniform(-0.3, 0.3)
+  - 偏置設為遞增值確保動作差異
+
+#### 問題 2：動作統計缺失
+- **新增功能**：
+  - `action_counts` 追蹤各動作使用次數
+  - 訓練日誌顯示動作使用百分比
+  - 每代總結顯示最佳個體動作分布
+
+#### 問題 3：模型相容性錯誤
+- **錯誤**：`'EvolvableNetwork' object has no attribute 'fc1'`
+- **修復**：
+  - 添加 `load_state_dict` 方法處理舊模型
+  - 保留 `self.layers` 屬性向後相容
+
+### 獎勵系統調整（V7.1）
+1. **簡化訂單完成獎勵**
+   - 運送中機器人直接獲得 2.0 × 路口權重獎勵
+   - 移除複雜的距離檢查
+
+2. **降低系統複雜度**
+   - 關鍵路口權重：5.0 → 2.0
+   - 總獎勵放大倍數：10 → 5
+
+### 關鍵檔案修改
+- `ai/controllers/nerl_controller.py`：網路架構重寫、動作統計
+- `ai/unified_reward_system.py`：V7 獎勵系統、權重調整
+- `world/entities/robot.py`：限速支援
+- `train.py`：動作統計輸出、錯誤修復
+
+### 訓練建議
+```bash
+# 標準訓練
+python train.py --agent nerl --reward_mode step --generations 10 --population 20 --eval_ticks 3000
+
+# 快速測試
+python train.py --agent nerl --reward_mode step --generations 5 --population 10 --eval_ticks 2000
+```
+
+### 預期改進
+- 動作使用多樣化（不再 100% Keep）
+- 限速功能開始被學習使用
+- 更穩定的訓練過程
+- 更好的訂單完成率

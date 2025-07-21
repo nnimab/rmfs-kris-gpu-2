@@ -33,15 +33,29 @@ class EvolvableNetwork(nn.Module):
         """
         super(EvolvableNetwork, self).__init__()
         self.device = device
+        self.action_size = action_size
         
-        # 增強版架構 - 更強的表達能力
-        self.layers = nn.Sequential(
-            nn.Linear(state_size, 128),
-            nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, action_size)
-        )
+        # 分別定義層，方便初始化
+        self.fc1 = nn.Linear(state_size, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, action_size)
+        
+        # 手動初始化權重
+        nn.init.xavier_uniform_(self.fc1.weight)
+        nn.init.xavier_uniform_(self.fc2.weight)
+        # 輸出層使用較小的初始化範圍
+        nn.init.uniform_(self.fc3.weight, -0.3, 0.3)
+        
+        # 偏置初始化
+        nn.init.constant_(self.fc1.bias, 0.01)
+        nn.init.constant_(self.fc2.bias, 0.01)
+        # 輸出層偏置設為不同的小值，確保初始動作偏好不同
+        for i in range(action_size):
+            self.fc3.bias.data[i] = (i - action_size/2) * 0.1
+        
+        # 保留 layers 屬性以便向後相容
+        self.layers = nn.Sequential(self.fc1, nn.ReLU(), self.fc2, nn.ReLU(), self.fc3)
+        
         self.to(self.device)
 
     def forward(self, x):
@@ -54,7 +68,29 @@ class EvolvableNetwork(nn.Module):
         Returns:
             Tensor: 策略輸出張量
         """
-        return self.layers(x)
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        x = self.fc3(x)  # 不使用激活函數，直接輸出 logits
+        return x
+    
+    def load_state_dict(self, state_dict, strict=True):
+        """
+        覆寫載入方法以支援舊版本模型
+        """
+        # 檢查是否是舊版本模型（只有 layers）
+        if 'layers.0.weight' in state_dict and 'fc1.weight' not in state_dict:
+            # 轉換舊版本的權重名稱
+            new_state_dict = {}
+            new_state_dict['fc1.weight'] = state_dict['layers.0.weight']
+            new_state_dict['fc1.bias'] = state_dict['layers.0.bias']
+            new_state_dict['fc2.weight'] = state_dict['layers.2.weight']
+            new_state_dict['fc2.bias'] = state_dict['layers.2.bias']
+            new_state_dict['fc3.weight'] = state_dict['layers.4.weight']
+            new_state_dict['fc3.bias'] = state_dict['layers.4.bias']
+            super().load_state_dict(new_state_dict, strict=False)
+        else:
+            # 新版本模型，直接載入
+            super().load_state_dict(state_dict, strict=strict)
     
     def get_weights_as_vector(self):
         """
@@ -93,7 +129,7 @@ class NEController(TrafficController):
     使用進化算法而非梯度下降來訓練神經網絡策略
     """
     
-    def __init__(self, min_green_time=1, bias_factor=1.5, state_size=17, action_size=3, 
+    def __init__(self, min_green_time=1, bias_factor=1.5, state_size=17, action_size=6, 
                  max_wait_threshold=50, model_name=None, 
                  population_size=20, elite_ratio=0.2, elite_size=None, tournament_size=4,
                  crossover_rate=0.8, mutation_rate=0.2, mutation_strength=0.15,  # 提高探索性
@@ -191,6 +227,9 @@ class NEController(TrafficController):
         self.previous_states = {}
         self.previous_actions = {}
         
+        # V7.0: 動作使用統計
+        self.action_counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+        
         # 評估計數器
         self.steps_since_evolution = 0
         self.evaluation_episodes = {}  # 用於跟踪每個個體的評估數據
@@ -218,12 +257,14 @@ class NEController(TrafficController):
             list: 包含population_size個神經網絡的列表
         """
         population = []
-        for _ in range(self.population_size):
+        for i in range(self.population_size):
             network = EvolvableNetwork(self.state_size, self.action_size, self.device)
-            # 使用Xavier初始化權重
-            for param in network.parameters():
-                if len(param.shape) > 1:
-                    nn.init.xavier_uniform_(param)
+            # 網路內部已經有初始化，只需要為不同個體添加一些變化
+            if i > 0:
+                # 為每個個體添加不同的隨機擾動
+                with torch.no_grad():
+                    for param in network.parameters():
+                        param.data += torch.randn_like(param) * 0.1
             population.append(network)
         return population
     
@@ -453,17 +494,39 @@ class NEController(TrafficController):
         state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
         network.eval()  # 切換到評估模式，解決 BatchNorm1d 在單樣本時的問題
         with torch.no_grad():
-            q_values = network(state_tensor)
-            action = torch.argmax(q_values).item()
+            action_logits = network(state_tensor)
+            
+            # V7.0: 在訓練的早期世代增加探索
+            if self.is_training and self.generation_count < 3 and np.random.random() < 0.2:
+                # 20% 機率隨機選擇動作
+                action = np.random.randint(0, self.action_size)
+            else:
+                action = torch.argmax(action_logits).item()
+            
+            # V7.0 診斷：第一次決策時輸出網路輸出
+            if not hasattr(self, '_first_decision_logged'):
+                self.logger.info(f"[NERL] First decision network outputs: {action_logits.cpu().numpy().flatten()}")
+                self.logger.info(f"[NERL] Selected action: {action}")
+                self._first_decision_logged = True
         
         self.previous_actions[intersection_id] = action
+        
+        # V7.0: 統計動作使用
+        if 0 <= action <= 5:
+            self.action_counts[action] += 1
+        
+        # V7.0: 處理限速動作
+        if action in [3, 4, 5]:  # 限速動作
+            self._handle_speed_action(action, intersection, warehouse)
+            # 限速動作不改變方向，保持當前方向
+            return intersection.allowed_direction if intersection.allowed_direction else "Horizontal"
         
         # 將動作轉換為方向
         if action == 0:  # 保持當前方向
             return intersection.allowed_direction if intersection.allowed_direction else "Horizontal"
         elif action == 1:  # 垂直方向
             return "Vertical"
-        else:  # 水平方向
+        else:  # action == 2, 水平方向
             return "Horizontal"
 
     def action_to_direction(self, action, intersection_id):
@@ -907,7 +970,44 @@ class NEController(TrafficController):
         
     def get_episode_summary(self):
         """獲取評估回合統計摘要"""
-        return self.reward_system.get_episode_summary()
+        summary = self.reward_system.get_episode_summary()
+        # V7.0: 添加動作統計
+        summary['action_counts'] = self.action_counts.copy()
+        return summary
+        
+    def get_action_statistics(self):
+        """V7.0: 獲取動作使用統計"""
+        total_actions = sum(self.action_counts.values())
+        if total_actions == 0:
+            return self.action_counts.copy()
+        
+        stats = {
+            'counts': self.action_counts.copy(),
+            'percentages': {
+                action: (count / total_actions * 100) for action, count in self.action_counts.items()
+            },
+            'total': total_actions,
+            'speed_actions_used': self.action_counts[3] + self.action_counts[4] + self.action_counts[5]
+        }
+        return stats
+        
+    def reset_action_counts(self):
+        """V7.0: 重置動作統計"""
+        self.action_counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+        
+    def _handle_speed_action(self, action, intersection, warehouse):
+        """V7.0: 處理限速動作"""
+        if not hasattr(warehouse, 'speed_limit_manager'):
+            return
+            
+        intersection_id = intersection.id
+        
+        if action == 3:  # 30% 限速
+            warehouse.speed_limit_manager.set_corridor_speed_limit(intersection_id, 0.3, "both")
+        elif action == 4:  # 50% 限速
+            warehouse.speed_limit_manager.set_corridor_speed_limit(intersection_id, 0.5, "both")
+        elif action == 5:  # 取消限速
+            warehouse.speed_limit_manager.remove_corridor_speed_limit(intersection_id, "both")
         
     def calculate_individual_fitness(self, warehouse, episode_ticks: int) -> float:
         """

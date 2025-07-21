@@ -21,6 +21,7 @@ from world.entities.robot import Robot
 from world.entities.job import Job
 from lib.generator.order_generator import *
 from lib.constant import *
+from world.speed_limit_manager import SpeedLimitManager
 if TYPE_CHECKING:
     from world.entities.object import Object
 
@@ -45,6 +46,7 @@ class Warehouse:
         self.robot_manager = RobotManager(self)
         self.pod_manager = PodManager(self)
         self.station_manager = StationManager(self)
+        self.speed_limit_manager = SpeedLimitManager(self)  # V7.0: 速度限制管理器
         self.next_process_tick = 0
         self.update_intersection_using_RL = True
         self.picking_station_queue_length = 0  # V5.0: 揀貨台排隊長度

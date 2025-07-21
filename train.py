@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import argparse
 import os
 import json
@@ -8,6 +10,12 @@ import platform
 from datetime import datetime
 import multiprocessing
 import torch
+
+# 設置輸出編碼
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer)
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer)
 
 # Real imports
 import netlogo
@@ -84,6 +92,9 @@ def evaluate_individual_parallel(args):
             return -1e9, {}
         controller.set_active_individual(individual_network)
         controller.reset_episode_stats()
+        
+        # V7.0: 重置動作統計
+        controller.reset_action_counts()
 
         # 5. 運行模擬
         # 記錄開始時間
@@ -146,6 +157,7 @@ def evaluate_individual_parallel(args):
         
         # 安全地更新指標
         try:
+            # 更新評估回合指標（訂單完成率等） - 這會內部呼叫 _update_system_metrics
             controller.reward_system.update_episode_metrics(warehouse, execution_time)
         except Exception as metrics_error:
             worker_logger.warning(f"更新指標時發生錯誤: {metrics_error}")
@@ -154,11 +166,21 @@ def evaluate_individual_parallel(args):
         fitness = controller.calculate_individual_fitness(warehouse, eval_ticks)
         episode_summary = controller.reward_system.get_episode_summary()
         
+        # V7.0: 獲取動作統計
+        action_stats = controller.get_action_statistics()
+        
         # 添加額外的 print 語句以確保 Windows 終端視窗顯示
-        print(f"=== NERL Worker {os.getpid()} 個體 {individual_index + 1} (世代 {generation + 1}) 評估完成，適應度: {fitness:.4f} ===")
+        print(f"=== NERL Worker {os.getpid()} Individual {individual_index + 1} (Generation {generation + 1}) evaluation complete, fitness: {fitness:.4f} ===")
+        
+        # V7.0: 輸出動作使用統計
+        if action_stats['total'] > 0:
+            print(f"Action Usage: Keep={action_stats['percentages'][0]:.1f}%, Vert={action_stats['percentages'][1]:.1f}%, Horz={action_stats['percentages'][2]:.1f}%, "
+                  f"Spd30%={action_stats['percentages'][3]:.1f}%, Spd50%={action_stats['percentages'][4]:.1f}%, NoLimit={action_stats['percentages'][5]:.1f}%")
+            print(f"Speed control actions used: {action_stats['speed_actions_used']} times")
+        
         sys.stdout.flush()  # 強制刷新 stdout
         
-        worker_logger.info(f"個體 {individual_index + 1} (世代 {generation + 1}) 評估完成，適應度: {fitness:.4f}")
+        worker_logger.info(f"Individual {individual_index + 1} (generation {generation + 1}) evaluation complete, fitness: {fitness:.4f}")
         return fitness, episode_summary
 
     except Exception as e:
@@ -404,6 +426,24 @@ def run_nerl_training(generations, population_size, evaluation_ticks, reward_mod
             best_fitness_of_gen = nerl_controller.evolve_with_fitness(fitness_scores, episode_summaries, generation=gen+1)
             logger.info(f"Generation {gen + 1} complete. Best fitness so far: {best_fitness_of_gen:.4f}")
             logger.info(f"  Fitness scores for this generation: {fitness_scores}")
+            
+            # V7.0: 輸出最佳個體的動作統計
+            if episode_summaries:
+                best_idx = fitness_scores.index(max(fitness_scores))
+                best_summary = episode_summaries[best_idx]
+                if 'action_counts' in best_summary:
+                    action_counts = best_summary['action_counts']
+                    total_actions = sum(action_counts.values())
+                    if total_actions > 0:
+                        logger.info(f"  Best individual action usage:")
+                        logger.info(f"    Keep: {action_counts[0]} ({action_counts[0]/total_actions*100:.1f}%)")
+                        logger.info(f"    Vertical: {action_counts[1]} ({action_counts[1]/total_actions*100:.1f}%)")
+                        logger.info(f"    Horizontal: {action_counts[2]} ({action_counts[2]/total_actions*100:.1f}%)")
+                        logger.info(f"    Speed 30%: {action_counts[3]} ({action_counts[3]/total_actions*100:.1f}%)")
+                        logger.info(f"    Speed 50%: {action_counts[4]} ({action_counts[4]/total_actions*100:.1f}%)")
+                        logger.info(f"    No Limit: {action_counts[5]} ({action_counts[5]/total_actions*100:.1f}%)")
+                        speed_actions = action_counts[3] + action_counts[4] + action_counts[5]
+                        logger.info(f"    Total speed control actions: {speed_actions} ({speed_actions/total_actions*100:.1f}%)")
         except Exception as e:
             logger.error(f"ERROR during evolution for generation {gen + 1}: {e}")
             break  # Stop training if evolution fails
@@ -450,7 +490,7 @@ def run_nerl_training(generations, population_size, evaluation_ticks, reward_mod
             "mutation_rate": nerl_controller.mutation_rate,
             "crossover_rate": nerl_controller.crossover_rate,
             "mutation_strength": nerl_controller.mutation_strength,
-            "variant": args.variant if args.variant else "default"
+            "variant": nerl_params.get('variant', 'default') if nerl_params else "default"
         }
         # 合併最終評估結果
         final_results = {
@@ -467,7 +507,7 @@ def run_nerl_training(generations, population_size, evaluation_ticks, reward_mod
         logger.info(f"Best fitness achieved: {nerl_controller.best_fitness:.4f}")
 
 
-def run_dqn_training(training_ticks, reward_mode="step", training_dir=None, log_file_path=None, batch_size=512):
+def run_dqn_training(training_ticks, reward_mode="step", training_dir=None, log_file_path=None, batch_size=512, variant=None):
     """
     執行DQN模型訓練循環
     
@@ -535,13 +575,13 @@ def run_dqn_training(training_ticks, reward_mode="step", training_dir=None, log_
     no_movement_ticks = 0
     last_completed_orders = 0
     last_robot_positions = {}
-    deadlock_threshold = 100  # 連續 100 ticks 沒有進展就判定死鎖
+    deadlock_threshold = 500  # 連續 500 ticks 沒有進展就判定死鎖（約 75 秒模擬時間）
     
     # 訓練循環
     for python_tick in range(training_ticks):
         # 設置當前 tick 給日誌系統（使用倉庫的實際時間）
         warehouse_tick = warehouse._tick if warehouse else python_tick * 0.15
-        set_current_tick(f"Python:{python_tick}|倉庫:{warehouse_tick:.1f}")
+        set_current_tick(f"Python:{python_tick}|Warehouse:{warehouse_tick:.1f}")
         
         if python_tick % 1000 == 0:
             # 檢查日誌級別，只有在 INFO 或更低級別時才顯示進度
@@ -617,14 +657,22 @@ def run_dqn_training(training_ticks, reward_mode="step", training_dir=None, log_
                 logger.warning(f"  - Maximum wait time: {max_wait} ticks")
                 
                 # 對於 global 獎勵模式，不應該提前終止
-                if args.reward_mode == 'global':
+                if reward_mode == 'global':
                     logger.warning(f"  - Continuing despite deadlock (global reward mode requires full episode)")
                     # 可選：重置死鎖計數器，給系統一個恢復的機會
                     if no_movement_ticks >= deadlock_threshold * 2:
                         logger.error(f"  - Severe deadlock detected, but continuing for global reward calculation")
                 else:
-                    logger.error(f"Ending training due to deadlock.")
-                    break
+                    # 對於 step 模式，給更多機會恢復
+                    if no_movement_ticks >= deadlock_threshold * 3:  # 1500 ticks
+                        logger.error(f"Ending training due to prolonged deadlock (1500 ticks)")
+                        break
+                    else:
+                        logger.warning(f"  - Giving system more time to recover...")
+                        # 可以考慮增加 epsilon 來增加探索
+                        if hasattr(dqn_controller, 'dqn') and dqn_controller.dqn.epsilon < 0.5:
+                            dqn_controller.dqn.epsilon = min(dqn_controller.dqn.epsilon * 1.5, 0.5)
+                            logger.warning(f"  - Increased epsilon to {dqn_controller.dqn.epsilon:.4f} to encourage exploration")
 
     # 對於 global 模式，在訓練結束時處理最後的 episode
     if reward_mode == "global":
@@ -639,6 +687,10 @@ def run_dqn_training(training_ticks, reward_mode="step", training_dir=None, log_
     
     # 保存最終的訓練數據和模型
     try:
+        # 更新評估回合指標（訂單完成率等） - 這會內部呼叫 _update_system_metrics
+        final_execution_time = time.time() - train_start_time
+        dqn_controller.reward_system.update_episode_metrics(warehouse, final_execution_time)
+        
         # 保存最後的 episode 總結
         dqn_controller.save_episode_summary(python_tick + 1, warehouse)
         
@@ -673,7 +725,7 @@ def run_dqn_training(training_ticks, reward_mode="step", training_dir=None, log_
             "epsilon_start": 1.0,
             "epsilon_end": dqn_controller.dqn.epsilon_min,
             "memory_size": dqn_controller.dqn.memory.maxlen,
-            "variant": args.variant if args.variant else "default"
+            "variant": variant if variant else "default"
         }
         final_results = {
             "total_ticks": python_tick + 1,
@@ -822,7 +874,7 @@ def main():
                           training_dir, args.parallel_workers, log_file_path, nerl_params)
     elif args.agent == 'dqn':
         # 將 training_dir 和 log_file_path 傳遞給訓練函式
-        run_dqn_training(args.training_ticks, reward_mode, training_dir, log_file_path, args.batch_size)
+        run_dqn_training(args.training_ticks, reward_mode, training_dir, log_file_path, args.batch_size, args.variant)
     else:
         logger.error("Invalid agent specified.")
     

@@ -47,6 +47,11 @@ class Robot(Object):
         self.current_state = 'idle'
         self.energy_consumption = 0
         self.current_tick_energy = 0  # 當前 tick 的能耗
+        
+        # V7.0: 限速控制
+        self.speed_limit_active = False  # 是否啟用限速
+        self.speed_limit_factor = 1.0  # 限速係數 (0.3 = 30%速度, 0.5 = 50%速度, 1.0 = 全速)
+        
         self.traffic_policy = []
         self.latest_tick = 0
         self.route_stop_points = []
@@ -91,6 +96,20 @@ class Robot(Object):
 
         return None
     
+    def apply_speed_limit(self, limit_factor: float):
+        """V7.0: 應用限速
+        
+        Args:
+            limit_factor: 限速係數 (0.3 = 30%速度, 0.5 = 50%速度, 1.0 = 全速)
+        """
+        self.speed_limit_active = True
+        self.speed_limit_factor = max(0.3, min(1.0, limit_factor))  # 限制在 0.3-1.0 之間
+        
+    def remove_speed_limit(self):
+        """V7.0: 移除限速"""
+        self.speed_limit_active = False
+        self.speed_limit_factor = 1.0
+    
     def calculateEnergy(self, velocity, acceleration):
         """計算能源消耗，包含啟動成本和再生制動"""
         tick_unit = TICK_TO_SECOND
@@ -128,6 +147,16 @@ class Robot(Object):
         
         # 總能耗 = 基礎能耗 + 啟動成本 - 再生回收
         total_energy = base_energy + startup_cost - regenerative_credit
+        
+        # V7.0: 低速下的能耗節省
+        # 能耗與速度平方成正比（空氣阻力），低速時減少能耗
+        if self.speed_limit_active and self.speed_limit_factor < 1.0:
+            # 速度降低後，能耗以平方關係減少
+            energy_reduction_factor = self.speed_limit_factor ** 1.5  # 使用 1.5 次方，低速更省能
+            total_energy *= energy_reduction_factor
+            
+            if self.DEBUG_LEVEL >= 2:
+                print(f"Robot {self.robotName()} 限速 {self.speed_limit_factor*100:.0f}%，能耗降低到 {energy_reduction_factor*100:.1f}%")
         
         # 確保能耗不為負（即使有再生制動）
         return max(0, total_energy)
@@ -622,7 +651,17 @@ class Robot(Object):
 
     def updateMotionParameters(self, current_coord, next_destination_coordinate):
         # Adjust robot's acceleration based on proximity to the next intersection_coordinate
-        self.acceleration = 1
+        # V7.0: 考慮限速
+        effective_max_speed = self.MAXIMUM_SPEED
+        if self.speed_limit_active:
+            effective_max_speed = self.MAXIMUM_SPEED * self.speed_limit_factor
+        
+        # 如果當前速度超過限速，減速
+        if self.velocity > effective_max_speed:
+            self.acceleration = -1
+        else:
+            self.acceleration = 1
+            
         deceleration_buffer = 0.5
         distance_to_stop = self._calculateTwoPoint(current_coord, next_destination_coordinate)
         if (self.velocity ** 2) / (2 * deceleration_buffer) >= distance_to_stop:
@@ -658,7 +697,11 @@ class Robot(Object):
 
         if self.acceleration != 0:
             self.velocity += (self.acceleration * TICK_TO_SECOND)
-            self.velocity = max(0, min(self.MAXIMUM_SPEED, self.velocity))
+            # V7.0: 考慮限速
+            effective_max_speed = self.MAXIMUM_SPEED
+            if self.speed_limit_active:
+                effective_max_speed = self.MAXIMUM_SPEED * self.speed_limit_factor
+            self.velocity = max(0, min(effective_max_speed, self.velocity))
 
         # for traffic policy purposes, report states to the manager
         self.robot_manager.warehouse.landscape.setObject(self.robotName(), self.pos_x, self.pos_y, self.velocity, self.acceleration,

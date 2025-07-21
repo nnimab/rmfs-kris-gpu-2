@@ -326,3 +326,19 @@ class Intersection(Object):
             
         total_waiting_time = sum(wait_time for _, wait_time in self.waiting_time_records)
         return total_waiting_time / len(self.waiting_time_records)
+    
+    def setSpeedLimit(self, active: bool, limit_value: float = 1.0):
+        """V7.0: 設定限速
+        
+        Args:
+            active: 是否啟用限速
+            limit_value: 限速值（預設1.0為低速）
+        """
+        self.speed_limit_active = active
+        self.speed_limit_value = limit_value
+        
+        # 對所有在路口的機器人應用限速
+        if active:
+            for robot in list(self.horizontal_robots.values()) + list(self.vertical_robots.values()):
+                if hasattr(robot, 'apply_speed_limit'):
+                    robot.apply_speed_limit(limit_value)
