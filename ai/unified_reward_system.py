@@ -445,13 +445,26 @@ class UnifiedRewardSystem:
         
         # 更新訂單處理時間指標
         if warehouse.order_manager.finished_orders:
-            total_completion_time = sum(
-                order.order_complete_time - order.order_arrival 
-                for order in warehouse.order_manager.finished_orders
-                if order.order_complete_time != -1
-            )
+            total_completion_time = 0
+            valid_orders = 0
+            
+            for order in warehouse.order_manager.finished_orders:
+                # 確保兩個值都是數字且有效
+                if (order.order_complete_time != -1 and 
+                    isinstance(order.order_complete_time, (int, float)) and 
+                    isinstance(order.order_arrival, (int, float))):
+                    completion_time = float(order.order_complete_time) - float(order.order_arrival)
+                    total_completion_time += completion_time
+                    valid_orders += 1
+                elif order.order_complete_time != -1:
+                    # 記錄問題但不中斷
+                    self.logger.warning(f"Invalid order time data: complete_time={order.order_complete_time} (type={type(order.order_complete_time)}), arrival={order.order_arrival} (type={type(order.order_arrival)})")
+            
             self.episode_data['total_completion_time'] = total_completion_time
-            self.episode_data['avg_order_processing_time'] = total_completion_time / len(warehouse.order_manager.finished_orders)
+            if valid_orders > 0:
+                self.episode_data['avg_order_processing_time'] = total_completion_time / valid_orders
+            else:
+                self.episode_data['avg_order_processing_time'] = 0.0
         
         # 更新時間指標
         if execution_time is not None:
