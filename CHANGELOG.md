@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Thesis Structure Refactoring (Chapter 3.4 & 3.6):**
+  - Restructured Chapter 3.4 to "Deep Reinforcement Learning Controller Design," sequentially introducing DQN as the baseline and NERL as the core method.
+  - Consolidated and renumbered the descriptions of State Space, Action Space, and Reward Function to follow the controller introductions (3.4.3 - 3.4.5), creating a more logical flow.
+  - Relocated hyperparameter settings from Chapter 3.5 to a new "DRL Model Hyperparameter Settings" section (3.6.2), placing it logically after the experimental design overview (3.6.1).
+  - Systematically updated all related files, aligning titles, content, mathematical notations, and cross-references with the new structure and academic writing standards.
+
 ### Added
 - **Git Ignore Configuration:** Added comprehensive `.gitignore` file to manage version control exclusions:
   - Excludes Python cache files, virtual environments, and compiled files

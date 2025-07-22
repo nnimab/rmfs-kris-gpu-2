@@ -723,7 +723,7 @@ def run_dqn_training(training_ticks, reward_mode="step", training_dir=None, log_
     # 保存最終的訓練數據和模型
     try:
         # 更新評估回合指標（訂單完成率等） - 這會內部呼叫 _update_system_metrics
-        final_execution_time = time.time() - train_start_time
+        final_execution_time = time.time() - start_time
         dqn_controller.reward_system.update_episode_metrics(warehouse, final_execution_time)
         
         # 保存最後的 episode 總結
