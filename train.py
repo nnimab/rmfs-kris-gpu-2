@@ -7,6 +7,7 @@ import sys
 import subprocess
 import time
 import platform
+import pickle
 from datetime import datetime
 import multiprocessing
 import torch
@@ -388,12 +389,18 @@ def run_nerl_training(generations, population_size, evaluation_ticks, reward_mod
         # 第一代時報告訂單狀態
         if gen == 0:
             # 建立臨時倉庫來檢查訂單數量
-            temp_warehouse = netlogo.setup()
-            if temp_warehouse:
-                logger.info(f"Initial order status for NERL training:")
-                logger.info(f"  - Backlog orders loaded: {len([o for o in temp_warehouse.order_manager.orders if o.id < 0])}")
-                logger.info(f"  - Total orders in system: {len(temp_warehouse.order_manager.orders)}")
-                del temp_warehouse
+            # 注意：netlogo.setup() 返回的是 result，不是 warehouse
+            # 我們需要直接從 pickle 檔案讀取 warehouse
+            netlogo.setup()  # 初始化倉庫
+            try:
+                with open('netlogo.state', 'rb') as file:
+                    temp_warehouse = pickle.load(file)
+                    logger.info(f"Initial order status for NERL training:")
+                    logger.info(f"  - Backlog orders loaded: {len([o for o in temp_warehouse.order_manager.orders if o.id < 0])}")
+                    logger.info(f"  - Total orders in system: {len(temp_warehouse.order_manager.orders)}")
+                    del temp_warehouse
+            except Exception as e:
+                logger.warning(f"Could not load warehouse state for order status: {e}")
         
         # --- 【修改點 2：將 log_file_path 和 nerl_params 加入到任務參數中】 ---
         # 準備並行任務所需的參數列表
