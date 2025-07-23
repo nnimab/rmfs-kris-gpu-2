@@ -984,13 +984,17 @@ aggregate_multi_session_results() {
     
     for dir in $recent_dirs; do
         if [ -d "$dir" ]; then
-            # 提取時間戳（最後 15 個字符）
             dir_name=$(basename "$dir")
-            timestamp="${dir_name: -15}"
             
-            # 檢查是否為多會話格式
-            if [[ "$dir_name" =~ EVAL_(time_based|queue_based|dqn|nerl).*_${timestamp} ]]; then
-                session_groups["$timestamp"]+="$dir "
+            # 嘗試提取時間戳（格式：YYYYMMDD_HHMMSS）
+            # 使用正則表達式匹配時間戳模式
+            if [[ "$dir_name" =~ ([0-9]{8}_[0-9]{6})$ ]]; then
+                timestamp="${BASH_REMATCH[1]}"
+                
+                # 檢查是否為多會話格式（包含控制器名稱）
+                if [[ "$dir_name" =~ EVAL_(time_based|queue_based|dqn|nerl) ]]; then
+                    session_groups["$timestamp"]+="$dir "
+                fi
             fi
         fi
     done
@@ -1030,14 +1034,26 @@ aggregate_multi_session_results() {
         return 0
     fi
     
+    # 檢查輸入是否為有效數字
+    if ! [[ "$choice" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}無效的選擇：請輸入數字${NC}"
+        return 1
+    fi
+    
     if [ "$choice" -lt 1 ] || [ "$choice" -ge "$index" ]; then
-        echo -e "${RED}無效的選擇${NC}"
+        echo -e "${RED}無效的選擇：超出範圍${NC}"
         return 1
     fi
     
     # 獲取選中的時間戳和目錄
     selected_timestamp="${group_keys[$choice]}"
     selected_dirs="${session_groups[$selected_timestamp]}"
+    
+    # 檢查是否有目錄
+    if [ -z "$selected_dirs" ]; then
+        echo -e "${RED}錯誤：未找到對應的目錄${NC}"
+        return 1
+    fi
     
     echo ""
     echo -e "${GREEN}準備聚合以下目錄:${NC}"
@@ -1055,6 +1071,11 @@ aggregate_multi_session_results() {
     
     output_dir=""
     if [ "$output_choice" = "2" ]; then
+        # 確保時間戳不為空
+        if [ -z "$selected_timestamp" ]; then
+            echo -e "${RED}錯誤：時間戳為空${NC}"
+            return 1
+        fi
         output_dir="result/evaluations/AGGREGATED_${selected_timestamp}"
         mkdir -p "$output_dir"
         echo -e "${GREEN}將輸出到: $output_dir${NC}"
