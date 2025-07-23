@@ -932,6 +932,146 @@ stop_evaluation_task() {
     fi
 }
 
+# 聚合多會話結果
+aggregate_multi_session_results() {
+    echo -e "${BLUE}多會話結果聚合工具${NC}"
+    echo ""
+    
+    # 查找最近的多會話評估結果
+    echo -e "${CYAN}正在尋找多會話評估結果...${NC}"
+    
+    # 獲取最近修改的評估目錄
+    recent_dirs=$(ls -dt result/evaluations/EVAL_* 2>/dev/null | head -20)
+    
+    if [ -z "$recent_dirs" ]; then
+        echo -e "${YELLOW}未找到任何評估結果${NC}"
+        return 1
+    fi
+    
+    # 分析目錄，找出屬於同一批次的多會話結果
+    declare -A session_groups
+    
+    for dir in $recent_dirs; do
+        if [ -d "$dir" ]; then
+            # 提取時間戳（最後 15 個字符）
+            dir_name=$(basename "$dir")
+            timestamp="${dir_name: -15}"
+            
+            # 檢查是否為多會話格式
+            if [[ "$dir_name" =~ EVAL_(time_based|queue_based|dqn|nerl).*_${timestamp} ]]; then
+                session_groups["$timestamp"]+="$dir "
+            fi
+        fi
+    done
+    
+    # 顯示找到的會話組
+    if [ ${#session_groups[@]} -eq 0 ]; then
+        echo -e "${YELLOW}未找到多會話評估結果${NC}"
+        echo -e "${BLUE}提示：只有使用多會話模式的評估才需要聚合${NC}"
+        return 1
+    fi
+    
+    echo -e "${GREEN}找到以下多會話評估批次:${NC}"
+    echo ""
+    
+    local index=1
+    declare -a group_keys
+    
+    for timestamp in "${!session_groups[@]}"; do
+        group_keys[$index]="$timestamp"
+        echo -e "${CYAN}[$index] 批次時間: $timestamp${NC}"
+        
+        # 顯示該批次的控制器
+        for dir in ${session_groups[$timestamp]}; do
+            controller=$(basename "$dir" | sed -E "s/EVAL_(.*)_${timestamp}/\1/")
+            echo -e "      • $controller"
+        done
+        
+        ((index++))
+        echo ""
+    done
+    
+    echo -e "${YELLOW}請選擇要聚合的批次 [1-$((index-1))]，或輸入 0 取消:${NC}"
+    read -p "請選擇: " choice
+    
+    if [ "$choice" = "0" ]; then
+        echo -e "${YELLOW}已取消${NC}"
+        return 0
+    fi
+    
+    if [ "$choice" -lt 1 ] || [ "$choice" -ge "$index" ]; then
+        echo -e "${RED}無效的選擇${NC}"
+        return 1
+    fi
+    
+    # 獲取選中的時間戳和目錄
+    selected_timestamp="${group_keys[$choice]}"
+    selected_dirs="${session_groups[$selected_timestamp]}"
+    
+    echo ""
+    echo -e "${GREEN}準備聚合以下目錄:${NC}"
+    for dir in $selected_dirs; do
+        echo -e "  • $dir"
+    done
+    
+    # 詢問輸出目錄
+    echo ""
+    echo -e "${BLUE}輸出目錄選項:${NC}"
+    echo "  [1] 使用第一個評估目錄（預設）"
+    echo "  [2] 創建新的聚合目錄"
+    
+    read -p "請選擇 [1-2]: " output_choice
+    
+    output_dir=""
+    if [ "$output_choice" = "2" ]; then
+        output_dir="result/evaluations/AGGREGATED_${selected_timestamp}"
+        mkdir -p "$output_dir"
+        echo -e "${GREEN}將輸出到: $output_dir${NC}"
+    fi
+    
+    # 執行聚合
+    echo ""
+    echo -e "${CYAN}開始聚合...${NC}"
+    
+    # 構建命令
+    aggregate_cmd="python aggregate_results.py"
+    
+    # 添加所有目錄
+    for dir in $selected_dirs; do
+        aggregate_cmd="$aggregate_cmd $dir"
+    done
+    
+    # 添加輸出目錄（如果指定）
+    if [ -n "$output_dir" ]; then
+        aggregate_cmd="$aggregate_cmd --output $output_dir"
+    fi
+    
+    echo -e "${YELLOW}執行命令: $aggregate_cmd${NC}"
+    echo ""
+    
+    # 執行聚合
+    $aggregate_cmd
+    
+    if [ $? -eq 0 ]; then
+        echo ""
+        echo -e "${GREEN}✅ 聚合完成！${NC}"
+        
+        # 顯示生成的文件
+        if [ -n "$output_dir" ]; then
+            target_dir="$output_dir"
+        else
+            target_dir=$(echo $selected_dirs | awk '{print $1}')
+        fi
+        
+        echo -e "${BLUE}生成的文件:${NC}"
+        ls -la "$target_dir"/aggregated_* 2>/dev/null | while read line; do
+            echo "  $line"
+        done
+    else
+        echo -e "${RED}❌ 聚合失敗${NC}"
+    fi
+}
+
 # 主選單
 show_main_menu() {
     echo -e "${BLUE}=== 主選單 ===${NC}"
@@ -948,6 +1088,7 @@ show_main_menu() {
     echo ""
     echo -e "${YELLOW}任務管理:${NC}"
     echo "  [7] 停止正在運行的評估"
+    echo "  [8] 聚合多會話結果（生成比較圖表）"
     echo ""
     echo -e "${RED}其他選項:${NC}"
     echo "  [0] 離開"
@@ -963,7 +1104,7 @@ main() {
         show_running_evaluations
         show_main_menu
         
-        read -p "請選擇 [0-7]: " choice
+        read -p "請選擇 [0-8]: " choice
         
         case $choice in
             1)
@@ -1006,6 +1147,10 @@ main() {
             7)
                 # 停止評估任務
                 stop_evaluation_task
+                ;;
+            8)
+                # 聚合多會話結果
+                aggregate_multi_session_results
                 ;;
             0)
                 echo -e "${GREEN}感謝使用 RMFS 評估管理器！${NC}"
