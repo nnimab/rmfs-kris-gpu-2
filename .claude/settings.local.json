@@ -14,7 +14,10 @@
       "Bash(git add:*)",
       "Bash(dir:*)",
       "Bash(head:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(chmod:*)",
+      "Bash(./test_model_scan.sh:*)",
+      "Bash(mv:*)"
     ],
     "deny": []
   }

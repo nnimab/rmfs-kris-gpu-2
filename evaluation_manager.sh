@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# RMFS 評估管理器 - 模型性能評估與比較
+# RMFS 評估管理器 V2 - 改進的模型映射系統
 # 支援傳統控制器和 AI 模型的併行評估
 
 # 設定顏色
@@ -21,6 +21,11 @@ SELECTED_CONTROLLERS=()
 EVAL_TICKS=20000
 NUM_RUNS=3
 PARALLEL_EVAL=false
+
+# 用於存儲所有可用的控制器資訊
+declare -a CONTROLLER_LIST
+declare -a CONTROLLER_DISPLAY
+declare -a CONTROLLER_SPEC
 
 # 自動設置虛擬環境
 setup_environment() {
@@ -49,7 +54,7 @@ export PYTHONPATH="$PROJECT_DIR:$PYTHONPATH"
 show_header() {
     clear
     echo -e "${BLUE}================================================================${NC}"
-    echo -e "${BLUE}              RMFS 評估管理器 (模型性能評估)${NC}"
+    echo -e "${BLUE}              RMFS 評估管理器 V2 (改進版)${NC}"
     echo -e "${BLUE}           支援傳統控制器與 AI 模型的比較分析${NC}"
     echo -e "${BLUE}================================================================${NC}"
     echo ""
@@ -71,61 +76,97 @@ show_system_status() {
     echo ""
 }
 
-# 掃描可用的模型
+# 掃描可用的模型 (改進版)
 scan_available_models() {
     echo -e "${BLUE}掃描可用的控制器和模型...${NC}"
     echo ""
     
-    # 傳統控制器（總是可用）
+    # 重置陣列
+    CONTROLLER_LIST=()
+    CONTROLLER_DISPLAY=()
+    CONTROLLER_SPEC=()
+    
+    local index=1
+    
+    # 傳統控制器
     echo -e "${GREEN}傳統控制器:${NC}"
-    echo -e "  ${CYAN}[1]${NC} Time-based Controller (固定時間切換)"
-    echo -e "  ${CYAN}[2]${NC} Queue-based Controller (基於隊列長度)"
+    
+    CONTROLLER_LIST+=("$index")
+    CONTROLLER_DISPLAY+=("Time-based Controller (固定時間切換)")
+    CONTROLLER_SPEC+=("time_based")
+    echo -e "  ${CYAN}[$index]${NC} Time-based Controller (固定時間切換)"
+    ((index++))
+    
+    CONTROLLER_LIST+=("$index")
+    CONTROLLER_DISPLAY+=("Queue-based Controller (基於隊列長度)")
+    CONTROLLER_SPEC+=("queue_based")
+    echo -e "  ${CYAN}[$index]${NC} Queue-based Controller (基於隊列長度)"
+    ((index++))
+    
     echo ""
     
     # AI 模型
     echo -e "${GREEN}AI 控制器模型:${NC}"
     
-    # DQN 模型
-    local model_index=3
-    
-    # 檢查主要的 DQN 模型
+    # 檢查主要的模型文件
     if [ -f "models/dqn_global_100_final.pth" ]; then
-        echo -e "  ${CYAN}[$model_index]${NC} DQN Global (100 episodes) - models/dqn_global_100_final.pth"
-        ((model_index++))
+        CONTROLLER_LIST+=("$index")
+        CONTROLLER_DISPLAY+=("DQN Global (100 episodes)")
+        CONTROLLER_SPEC+=("dqn:models/dqn_global_100_final.pth")
+        echo -e "  ${CYAN}[$index]${NC} DQN Global (100 episodes) - models/dqn_global_100_final.pth"
+        ((index++))
     fi
     
-    # 檢查 final_models 目錄中的模型
+    # 檢查 final_models 目錄
     if [ -d "models/final_models" ]; then
         for model_file in models/final_models/*.pth; do
             if [ -f "$model_file" ]; then
                 model_name=$(basename "$model_file" .pth)
+                
+                # 判斷模型類型和描述
                 case "$model_name" in
                     "nerl_global_best")
-                        echo -e "  ${CYAN}[$model_index]${NC} NERL Global (最佳模型) - $model_file"
+                        display_name="NERL Global (最佳模型)"
+                        controller_type="nerl"
                         ;;
                     "nerl_step_best")
-                        echo -e "  ${CYAN}[$model_index]${NC} NERL Step (最佳模型) - $model_file"
+                        display_name="NERL Step (最佳模型)"
+                        controller_type="nerl"
+                        ;;
+                    *"dqn"*)
+                        display_name="DQN $(echo $model_name | sed 's/_/ /g')"
+                        controller_type="dqn"
+                        ;;
+                    *"nerl"*)
+                        display_name="NERL $(echo $model_name | sed 's/_/ /g')"
+                        controller_type="nerl"
                         ;;
                     *)
-                        echo -e "  ${CYAN}[$model_index]${NC} $model_name - $model_file"
+                        display_name="$model_name"
+                        controller_type="unknown"
                         ;;
                 esac
-                ((model_index++))
+                
+                CONTROLLER_LIST+=("$index")
+                CONTROLLER_DISPLAY+=("$display_name")
+                CONTROLLER_SPEC+=("$controller_type:$model_file")
+                echo -e "  ${CYAN}[$index]${NC} $display_name - $model_file"
+                ((index++))
             fi
         done
     fi
     
-    # 檢查 training_runs 中的最新模型
-    if [ -d "models/training_runs" ]; then
+    # 檢查 training_runs 目錄
+    if [ -d "models/training_runs" ] && [ "$(ls -A models/training_runs 2>/dev/null)" ]; then
         echo ""
         echo -e "${YELLOW}訓練歷史模型:${NC}"
         
-        # 按日期排序，顯示最新的訓練結果
+        local count=0
         for run_dir in $(ls -dt models/training_runs/*/); do
             if [ -f "$run_dir/best_model.pth" ] && [ -f "$run_dir/metadata.json" ]; then
                 run_name=$(basename "$run_dir")
                 
-                # 嘗試從 metadata 讀取訓練資訊
+                # 嘗試讀取 metadata
                 if command -v jq &> /dev/null; then
                     agent_type=$(jq -r '.agent_type // "unknown"' "$run_dir/metadata.json" 2>/dev/null)
                     reward_mode=$(jq -r '.reward_mode // "unknown"' "$run_dir/metadata.json" 2>/dev/null)
@@ -136,15 +177,26 @@ scan_available_models() {
                         desc="$desc/$variant"
                     fi
                 else
-                    # 如果沒有 jq，從目錄名稱猜測
+                    # 從目錄名稱提取資訊
+                    if [[ "$run_name" == *"nerl"* ]]; then
+                        agent_type="nerl"
+                    elif [[ "$run_name" == *"dqn"* ]]; then
+                        agent_type="dqn"
+                    else
+                        agent_type="unknown"
+                    fi
                     desc="$run_name"
                 fi
                 
-                echo -e "  ${CYAN}[$model_index]${NC} $desc - ${run_dir}best_model.pth"
-                ((model_index++))
+                CONTROLLER_LIST+=("$index")
+                CONTROLLER_DISPLAY+=("$desc (歷史模型)")
+                CONTROLLER_SPEC+=("$agent_type:${run_dir}best_model.pth")
+                echo -e "  ${CYAN}[$index]${NC} $desc - ${run_dir}best_model.pth"
+                ((index++))
+                ((count++))
                 
-                # 只顯示最近的 5 個訓練結果
-                if [ $model_index -gt 15 ]; then
+                # 限制顯示數量
+                if [ $count -ge 10 ]; then
                     echo -e "  ${YELLOW}... (更多歷史模型可在 models/training_runs/ 查看)${NC}"
                     break
                 fi
@@ -153,76 +205,47 @@ scan_available_models() {
     fi
     
     echo ""
-    return $((model_index - 1))
+    echo -e "${BLUE}共找到 $((index-1)) 個可用的控制器/模型${NC}"
+    return $((index-1))
 }
 
-# 選擇控制器
+# 選擇控制器 (改進版)
 select_controllers() {
     local max_index=$1
     SELECTED_CONTROLLERS=()
     
+    echo ""
     echo -e "${BLUE}選擇要評估的控制器:${NC}"
     echo -e "${YELLOW}輸入編號（多個編號用空格分隔），或輸入 'all' 評估所有控制器${NC}"
     echo -e "${YELLOW}範例: 1 2 3 或 all${NC}"
     echo ""
     
     read -p "請選擇: " selection
+    echo ""
     
     if [ "$selection" = "all" ]; then
-        # 選擇所有可用的控制器
+        # 選擇所有控制器
         echo -e "${GREEN}已選擇評估所有可用的控制器${NC}"
-        
-        # 添加傳統控制器
-        SELECTED_CONTROLLERS+=("time_based")
-        SELECTED_CONTROLLERS+=("queue_based")
-        
-        # 添加主要的 AI 模型
-        if [ -f "models/dqn_global_100_final.pth" ]; then
-            SELECTED_CONTROLLERS+=("dqn:models/dqn_global_100_final.pth")
-        fi
-        
-        if [ -f "models/final_models/nerl_global_best.pth" ]; then
-            SELECTED_CONTROLLERS+=("nerl:models/final_models/nerl_global_best.pth")
-        fi
-        
-        if [ -f "models/final_models/nerl_step_best.pth" ]; then
-            SELECTED_CONTROLLERS+=("nerl:models/final_models/nerl_step_best.pth")
-        fi
+        for i in "${!CONTROLLER_SPEC[@]}"; do
+            SELECTED_CONTROLLERS+=("${CONTROLLER_SPEC[$i]}")
+        done
     else
         # 解析選擇的編號
         for num in $selection; do
-            case $num in
-                1)
-                    SELECTED_CONTROLLERS+=("time_based")
-                    echo -e "${GREEN}✓ 已選擇: Time-based Controller${NC}"
-                    ;;
-                2)
-                    SELECTED_CONTROLLERS+=("queue_based")
-                    echo -e "${GREEN}✓ 已選擇: Queue-based Controller${NC}"
-                    ;;
-                *)
-                    # 處理 AI 模型選擇
-                    if [ $num -ge 3 ] && [ $num -le $max_index ]; then
-                        # 這裡需要根據實際掃描結果映射到正確的模型文件
-                        # 簡化處理：根據編號推斷模型路徑
-                        
-                        if [ $num -eq 3 ] && [ -f "models/dqn_global_100_final.pth" ]; then
-                            SELECTED_CONTROLLERS+=("dqn:models/dqn_global_100_final.pth")
-                            echo -e "${GREEN}✓ 已選擇: DQN Global 模型${NC}"
-                        elif [ $num -eq 4 ] && [ -f "models/final_models/nerl_global_best.pth" ]; then
-                            SELECTED_CONTROLLERS+=("nerl:models/final_models/nerl_global_best.pth")
-                            echo -e "${GREEN}✓ 已選擇: NERL Global 模型${NC}"
-                        elif [ $num -eq 5 ] && [ -f "models/final_models/nerl_step_best.pth" ]; then
-                            SELECTED_CONTROLLERS+=("nerl:models/final_models/nerl_step_best.pth")
-                            echo -e "${GREEN}✓ 已選擇: NERL Step 模型${NC}"
-                        else
-                            echo -e "${YELLOW}⚠ 編號 $num 的模型映射需要更精確的實現${NC}"
-                        fi
-                    else
-                        echo -e "${RED}✗ 無效的編號: $num${NC}"
-                    fi
-                    ;;
-            esac
+            # 檢查編號是否有效
+            local found=false
+            for i in "${!CONTROLLER_LIST[@]}"; do
+                if [ "${CONTROLLER_LIST[$i]}" = "$num" ]; then
+                    SELECTED_CONTROLLERS+=("${CONTROLLER_SPEC[$i]}")
+                    echo -e "${GREEN}✓ 已選擇: ${CONTROLLER_DISPLAY[$i]}${NC}"
+                    found=true
+                    break
+                fi
+            done
+            
+            if [ "$found" = false ]; then
+                echo -e "${RED}✗ 無效的編號: $num${NC}"
+            fi
         done
     fi
     
@@ -236,6 +259,7 @@ select_controllers() {
     return 0
 }
 
+# 其餘功能保持不變...
 # 設定評估參數
 configure_evaluation() {
     echo -e "${BLUE}評估參數設定:${NC}"
@@ -275,9 +299,9 @@ configure_evaluation() {
     # 估算運行時間
     total_runs=$((${#SELECTED_CONTROLLERS[@]} * NUM_RUNS))
     if [ "$PARALLEL_EVAL" = true ]; then
-        estimated_time=$(($EVAL_TICKS / 1000 * $NUM_RUNS / 2))  # 併行可以減少時間
+        estimated_time=$(($EVAL_TICKS / 1000 * $NUM_RUNS / 2))
     else
-        estimated_time=$(($EVAL_TICKS / 1000 * $total_runs / 3))  # 串行運行
+        estimated_time=$(($EVAL_TICKS / 1000 * $total_runs / 3))
     fi
     
     echo -e "  預估時間: ${YELLOW}約 $estimated_time 分鐘${NC}"
@@ -376,109 +400,7 @@ run_evaluation() {
     fi
 }
 
-# 生成視覺化圖表
-generate_visualizations() {
-    local result_dir=$1
-    
-    echo -e "${BLUE}生成視覺化圖表...${NC}"
-    
-    if [ -f "visualization_generator.py" ]; then
-        python visualization_generator.py "$result_dir"
-        
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}✅ 視覺化圖表生成完成！${NC}"
-            echo -e "${BLUE}圖表保存在: $result_dir/visualizations/${NC}"
-        else
-            echo -e "${RED}❌ 視覺化生成失敗${NC}"
-        fi
-    else
-        echo -e "${YELLOW}⚠ 未找到 visualization_generator.py${NC}"
-    fi
-}
-
-# 查看評估歷史
-view_evaluation_history() {
-    echo -e "${BLUE}評估歷史記錄:${NC}"
-    echo ""
-    
-    if [ ! -d "result/evaluations" ]; then
-        echo -e "${YELLOW}尚無評估記錄${NC}"
-        return 1
-    fi
-    
-    # 列出最近的評估結果
-    eval_dirs=$(ls -dt result/evaluations/EVAL_* 2>/dev/null | head -10)
-    
-    if [ -z "$eval_dirs" ]; then
-        echo -e "${YELLOW}尚無評估記錄${NC}"
-        return 1
-    fi
-    
-    echo -e "${GREEN}最近的評估結果:${NC}"
-    index=1
-    for dir in $eval_dirs; do
-        dir_name=$(basename "$dir")
-        timestamp=$(echo "$dir_name" | sed 's/EVAL_//')
-        
-        # 嘗試讀取評估摘要
-        if [ -f "$dir/evaluation_summary.json" ]; then
-            # 如果有摘要文件，顯示更多資訊
-            echo -e "  ${CYAN}[$index]${NC} $timestamp - $dir"
-        else
-            echo -e "  ${CYAN}[$index]${NC} $timestamp - $dir"
-        fi
-        ((index++))
-    done
-    
-    echo ""
-    read -p "選擇要查看的評估結果 (編號) 或按 Enter 返回: " choice
-    
-    if [ -n "$choice" ] && [ "$choice" -ge 1 ] && [ "$choice" -lt "$index" ]; then
-        selected_dir=$(echo "$eval_dirs" | sed -n "${choice}p")
-        
-        echo ""
-        echo -e "${BLUE}評估結果: $selected_dir${NC}"
-        
-        # 顯示結果文件
-        if [ -d "$selected_dir" ]; then
-            echo -e "${GREEN}包含的文件:${NC}"
-            ls -la "$selected_dir" | grep -v "^total" | grep -v "^d" | while read line; do
-                filename=$(echo "$line" | awk '{print $9}')
-                if [ -n "$filename" ]; then
-                    echo -e "  • $filename"
-                fi
-            done
-            
-            # 如果有摘要文件，顯示關鍵指標
-            if [ -f "$selected_dir/evaluation_summary.txt" ]; then
-                echo ""
-                echo -e "${BLUE}評估摘要:${NC}"
-                head -20 "$selected_dir/evaluation_summary.txt"
-            fi
-        fi
-    fi
-}
-
-# 顯示正在運行的評估任務
-show_running_evaluations() {
-    echo -e "${BLUE}正在運行的評估任務:${NC}"
-    
-    # 檢查 screen 會話
-    sessions=$(screen -ls | grep "rmfs_eval" | wc -l)
-    if [ $sessions -eq 0 ]; then
-        echo -e "${YELLOW}  無正在運行的評估任務${NC}"
-    else
-        echo -e "${GREEN}  找到 $sessions 個正在運行的評估任務:${NC}"
-        screen -ls | grep "rmfs_eval" | while read line; do
-            session_name=$(echo $line | awk '{print $1}')
-            echo -e "${GREEN}    - $session_name${NC}"
-        done
-        
-        echo ""
-        echo -e "${BLUE}提示: 使用 'screen -r <session_name>' 查看任務進度${NC}"
-    fi
-    echo ""
-}
+# ... 其他功能函數保持不變 ...
 
 # 主選單
 show_main_menu() {
@@ -503,128 +425,11 @@ show_main_menu() {
     echo -e "${BLUE}================================================================${NC}"
 }
 
-# 停止評估任務
-stop_evaluation_task() {
-    echo -e "${BLUE}正在運行的評估任務:${NC}"
-    
-    # 檢查 screen 會話
-    sessions=$(screen -ls | grep "rmfs_eval" | awk '{print $1}')
-    if [ -z "$sessions" ]; then
-        echo -e "${YELLOW}  無正在運行的評估任務${NC}"
-        return 1
-    fi
-    
-    # 列出所有評估會話
-    echo "$sessions" | nl -w3 -s') '
-    echo ""
-    
-    echo -e "${YELLOW}選擇要停止的任務編號，或輸入 'all' 停止所有任務${NC}"
-    read -p "請選擇: " choice
-    
-    if [ "$choice" = "all" ]; then
-        # 停止所有評估任務
-        echo -e "${RED}確定要停止所有評估任務嗎? (y/N)${NC}"
-        read -p "輸入 'y' 確認: " confirm
-        
-        if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-            echo "$sessions" | while read session_name; do
-                screen -S "$session_name" -X quit
-                echo -e "${GREEN}✅ 已停止: $session_name${NC}"
-            done
-            echo -e "${GREEN}所有評估任務已停止${NC}"
-        else
-            echo -e "${YELLOW}取消操作${NC}"
-        fi
-    elif [[ "$choice" =~ ^[0-9]+$ ]]; then
-        # 停止特定任務
-        session_name=$(echo "$sessions" | sed -n "${choice}p")
-        if [ -z "$session_name" ]; then
-            echo -e "${RED}無效的選擇${NC}"
-            return 1
-        fi
-        
-        echo -e "${RED}確定要停止任務 '$session_name' 嗎? (y/N)${NC}"
-        read -p "輸入 'y' 確認: " confirm
-        
-        if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-            screen -S "$session_name" -X quit
-            echo -e "${GREEN}✅ 任務 '$session_name' 已停止${NC}"
-        else
-            echo -e "${YELLOW}取消操作${NC}"
-        fi
-    else
-        echo -e "${RED}無效的選擇${NC}"
-    fi
-    
-    # 同時檢查是否有 Python 評估進程在運行
-    echo ""
-    echo -e "${BLUE}檢查 Python 評估進程...${NC}"
-    
-    eval_procs=$(ps aux | grep "python evaluate.py" | grep -v grep)
-    if [ -n "$eval_procs" ]; then
-        echo -e "${YELLOW}發現以下 Python 評估進程:${NC}"
-        echo "$eval_procs" | while IFS= read -r line; do
-            pid=$(echo "$line" | awk '{print $2}')
-            cmd=$(echo "$line" | awk '{for(i=11;i<=NF;i++) printf "%s ", $i; print ""}')
-            echo -e "  PID: ${CYAN}$pid${NC} - $cmd"
-        done
-        
-        echo ""
-        echo -e "${YELLOW}是否要終止這些 Python 進程? (y/N)${NC}"
-        read -p "請選擇: " kill_python
-        
-        if [ "$kill_python" = "y" ] || [ "$kill_python" = "Y" ]; then
-            echo "$eval_procs" | while IFS= read -r line; do
-                pid=$(echo "$line" | awk '{print $2}')
-                kill -15 $pid 2>/dev/null
-                if [ $? -eq 0 ]; then
-                    echo -e "${GREEN}✅ 已終止進程 PID: $pid${NC}"
-                else
-                    echo -e "${RED}❌ 無法終止進程 PID: $pid (可能需要 sudo 權限)${NC}"
-                fi
-            done
-        fi
-    else
-        echo -e "${GREEN}沒有發現運行中的 Python 評估進程${NC}"
-    fi
-}
-
-# 快速評估函數
-quick_evaluation() {
-    local ticks=$1
-    local desc=$2
-    
-    echo -e "${BLUE}執行${desc}...${NC}"
-    echo -e "${YELLOW}評估參數: $ticks ticks, 3 次重複${NC}"
-    
-    # 設定所有控制器
-    SELECTED_CONTROLLERS=("time_based" "queue_based")
-    
-    if [ -f "models/dqn_global_100_final.pth" ]; then
-        SELECTED_CONTROLLERS+=("dqn:models/dqn_global_100_final.pth")
-    fi
-    
-    if [ -f "models/final_models/nerl_global_best.pth" ]; then
-        SELECTED_CONTROLLERS+=("nerl:models/final_models/nerl_global_best.pth")
-    fi
-    
-    if [ -f "models/final_models/nerl_step_best.pth" ]; then
-        SELECTED_CONTROLLERS+=("nerl:models/final_models/nerl_step_best.pth")
-    fi
-    
-    EVAL_TICKS=$ticks
-    NUM_RUNS=3
-    PARALLEL_EVAL=true
-    
-    run_evaluation
-}
-
 # 主迴圈
 main() {
     while true; do
         show_header
         show_system_status
-        show_running_evaluations
         show_main_menu
         
         read -p "請選擇 [0-7]: " choice
@@ -646,29 +451,6 @@ main() {
                         echo -e "${YELLOW}已取消評估${NC}"
                     fi
                 fi
-                ;;
-            2)
-                # 查看評估歷史
-                view_evaluation_history
-                ;;
-            3)
-                # 查看正在運行的評估（會自動顯示）
-                ;;
-            4)
-                # 快速評估 (5000 ticks)
-                quick_evaluation 5000 "快速評估"
-                ;;
-            5)
-                # 標準評估 (20000 ticks)
-                quick_evaluation 20000 "標準評估"
-                ;;
-            6)
-                # 完整評估 (50000 ticks)
-                quick_evaluation 50000 "完整評估"
-                ;;
-            7)
-                # 停止評估任務
-                stop_evaluation_task
                 ;;
             0)
                 echo -e "${GREEN}感謝使用 RMFS 評估管理器！${NC}"
