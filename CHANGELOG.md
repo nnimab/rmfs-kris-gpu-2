@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- **Reference List Sorting:** The reference list in `thesis/參考文獻.md` has been reordered alphabetically based on its citation tags (e.g., [a], [b], [c]).
 - **Thesis Structure Refactoring (Chapter 3.4 & 3.6):**
   - Restructured Chapter 3.4 to "Deep Reinforcement Learning Controller Design," sequentially introducing DQN as the baseline and NERL as the core method.
   - Consolidated and renumbered the descriptions of State Space, Action Space, and Reward Function to follow the controller introductions (3.4.3 - 3.4.5), creating a more logical flow.

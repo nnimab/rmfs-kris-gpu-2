@@ -1,0 +1,56 @@
+RMFS 評估管理器使用說明
+=======================
+
+# 啟動評估管理器
+./evaluation_manager.sh
+
+# 主要功能
+
+## 1. 執行新的評估
+- 選擇要評估的控制器（傳統控制器 + AI 模型）
+- 設定評估 tick 數量
+- 選擇串行或併行運行模式
+- 支援背景執行（使用 screen）
+
+## 2. 快速評估選項
+- 快速評估 (5000 ticks)：適合測試
+- 標準評估 (20000 ticks)：平衡時間與準確度
+- 完整評估 (50000 ticks)：最準確但耗時
+
+## 3. 查看評估歷史
+- 自動顯示最近 10 次評估結果
+- 可查看每次評估的詳細報告
+
+## 評估器支援的控制器格式
+
+### 傳統控制器
+- time_based：固定時間切換
+- queue_based：基於隊列長度
+
+### AI 模型
+- dqn:path/to/model.pth：指定 DQN 模型文件
+- nerl:path/to/model.pth：指定 NERL 模型文件
+
+## 使用範例
+
+### 評估特定控制器
+python evaluate.py --controllers time_based queue_based dqn:models/dqn_global_100_final.pth --eval_ticks 10000
+
+### 併行評估所有控制器
+python evaluate.py --parallel --eval_ticks 20000
+
+### 評估管理器快捷方式
+選項 4-6 會自動評估所有可用的控制器
+
+## 輸出結果
+- result/evaluations/EVAL_YYYYMMDD_HHMMSS/
+  - evaluation_results_*.json：詳細評估數據
+  - evaluation_results_*.csv：CSV 格式數據
+  - evaluation_report_*.txt：文字報告
+  - evaluation_comparison_*.png：比較圖表
+  - evaluation_summary.json：評估摘要
+
+## 注意事項
+1. 評估前確保已有訓練好的模型在 models/ 目錄
+2. 併行模式會加快評估速度但增加系統負載
+3. 背景運行使用 screen，可用 screen -r 查看進度

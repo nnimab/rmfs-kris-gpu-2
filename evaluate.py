@@ -13,6 +13,8 @@ import pandas as pd
 from datetime import datetime
 from pathlib import Path
 import matplotlib.pyplot as plt
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprocessing import cpu_count
 
 # 導入必要的模組
 import netlogo
@@ -269,53 +271,99 @@ class ControllerEvaluator:
             self.logger.error(f"評估 {controller_name} 時發生錯誤: {e}", exc_info=True)
             return None
     
-    def run_evaluation(self):
+    def parse_controller_specs(self, controller_specs):
+        """解析控制器規格列表"""
+        controllers = {}
+        
+        for spec in controller_specs:
+            if ':' in spec:
+                # AI模型格式: type:path
+                controller_type, model_path = spec.split(':', 1)
+                
+                # 從路徑推斷 reward_mode
+                reward_mode = 'step' if 'step' in model_path else 'global'
+                
+                controller_name = f"{controller_type}_{reward_mode}_custom"
+                controllers[controller_name] = {
+                    'type': controller_type,
+                    'reward_mode': reward_mode,
+                    'model_path': model_path,
+                    'metadata': {
+                        'controller_type': controller_type,
+                        'source': 'custom_path'
+                    }
+                }
+            else:
+                # 傳統控制器
+                if spec in ['time_based', 'queue_based']:
+                    controllers[spec] = {
+                        'type': spec,
+                        'reward_mode': None,
+                        'model_path': None,
+                        'metadata': {'controller_type': spec}
+                    }
+                else:
+                    self.logger.warning(f"未知的控制器類型: {spec}")
+        
+        return controllers
+    
+    def run_evaluation(self, controller_specs=None, parallel=False):
         """運行完整評估"""
         self.logger.info("開始控制器性能評估")
         
-        # 載入訓練好的模型
-        trained_models = self.load_trained_models()
-        
-        # 添加傳統控制器
-        controllers_to_evaluate = {
-            **trained_models,
-            'queue_based': {
-                'type': 'queue_based',
-                'reward_mode': None,
-                'model_path': None,
-                'metadata': {'controller_type': 'queue_based'}
-            },
-            'time_based': {
-                'type': 'time_based', 
-                'reward_mode': None,
-                'model_path': None,
-                'metadata': {'controller_type': 'time_based'}
+        if controller_specs:
+            # 使用指定的控制器
+            controllers_to_evaluate = self.parse_controller_specs(controller_specs)
+        else:
+            # 載入所有可用的控制器
+            trained_models = self.load_trained_models()
+            
+            # 添加傳統控制器
+            controllers_to_evaluate = {
+                **trained_models,
+                'queue_based': {
+                    'type': 'queue_based',
+                    'reward_mode': None,
+                    'model_path': None,
+                    'metadata': {'controller_type': 'queue_based'}
+                },
+                'time_based': {
+                    'type': 'time_based', 
+                    'reward_mode': None,
+                    'model_path': None,
+                    'metadata': {'controller_type': 'time_based'}
+                }
             }
-        }
         
         self.logger.info(f"將評估 {len(controllers_to_evaluate)} 個控制器")
         
         # 評估每個控制器
         all_results = []
         
-        for controller_name, controller_config in controllers_to_evaluate.items():
-            self.logger.info(f"開始評估控制器: {controller_name}")
-            
-            controller_results = []
-            for run_id in range(self.num_runs):
-                result = self.evaluate_controller(controller_name, controller_config, run_id)
-                if result:
-                    controller_results.append(result)
-                    all_results.append(result)
-            
-            # 計算該控制器的平均性能
-            if controller_results:
-                avg_result = self.calculate_average_performance(controller_results)
-                self.results[controller_name] = {
-                    'individual_runs': controller_results,
-                    'average_performance': avg_result,
-                    'config': controller_config
-                }
+        if parallel:
+            # 併行評估
+            self.logger.info(f"使用併行模式評估 (最多 {cpu_count()} 進程)")
+            self._run_parallel_evaluation(controllers_to_evaluate, all_results)
+        else:
+            # 串行評估
+            for controller_name, controller_config in controllers_to_evaluate.items():
+                self.logger.info(f"開始評估控制器: {controller_name}")
+                
+                controller_results = []
+                for run_id in range(self.num_runs):
+                    result = self.evaluate_controller(controller_name, controller_config, run_id)
+                    if result:
+                        controller_results.append(result)
+                        all_results.append(result)
+                
+                # 計算該控制器的平均性能
+                if controller_results:
+                    avg_result = self.calculate_average_performance(controller_results)
+                    self.results[controller_name] = {
+                        'individual_runs': controller_results,
+                        'average_performance': avg_result,
+                        'config': controller_config
+                    }
         
         # 保存結果
         self.save_results(all_results)
@@ -353,6 +401,48 @@ class ControllerEvaluator:
         avg_result['num_runs'] = len(results)
         return avg_result
     
+    def _run_parallel_evaluation(self, controllers_to_evaluate, all_results):
+        """併行運行評估"""
+        max_workers = min(cpu_count(), len(controllers_to_evaluate) * self.num_runs)
+        
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            # 提交所有評估任務
+            future_to_task = {}
+            
+            for controller_name, controller_config in controllers_to_evaluate.items():
+                for run_id in range(self.num_runs):
+                    future = executor.submit(
+                        self.evaluate_controller,
+                        controller_name,
+                        controller_config,
+                        run_id
+                    )
+                    future_to_task[future] = (controller_name, run_id)
+            
+            # 收集結果
+            controller_results_map = {name: [] for name in controllers_to_evaluate}
+            
+            for future in as_completed(future_to_task):
+                controller_name, run_id = future_to_task[future]
+                try:
+                    result = future.result()
+                    if result:
+                        controller_results_map[controller_name].append(result)
+                        all_results.append(result)
+                        self.logger.info(f"完成: {controller_name} (運行 {run_id + 1}/{self.num_runs})")
+                except Exception as exc:
+                    self.logger.error(f"評估失敗 {controller_name} (運行 {run_id + 1}): {exc}")
+            
+            # 計算平均性能
+            for controller_name, controller_results in controller_results_map.items():
+                if controller_results:
+                    avg_result = self.calculate_average_performance(controller_results)
+                    self.results[controller_name] = {
+                        'individual_runs': controller_results,
+                        'average_performance': avg_result,
+                        'config': controllers_to_evaluate[controller_name]
+                    }
+    
     def save_results(self, all_results):
         """保存評估結果"""
         timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
@@ -373,6 +463,28 @@ class ControllerEvaluator:
         df = pd.DataFrame(all_results)
         csv_file = self.output_dir / f"evaluation_results_{timestamp}.csv"
         df.to_csv(csv_file, index=False, encoding='utf-8')
+        
+        # 保存評估摘要（供評估管理器使用）
+        summary_file = self.output_dir / "evaluation_summary.json"
+        summary_data = {
+            'timestamp': timestamp,
+            'evaluation_ticks': self.evaluation_ticks,
+            'num_runs': self.num_runs,
+            'controllers_evaluated': list(self.results.keys()),
+            'best_completion_rate': None,
+            'best_controller': None
+        }
+        
+        if self.results:
+            best_controller = max(
+                self.results.items(),
+                key=lambda x: x[1]['average_performance']['completion_rate']
+            )
+            summary_data['best_controller'] = best_controller[0]
+            summary_data['best_completion_rate'] = best_controller[1]['average_performance']['completion_rate']
+        
+        with open(summary_file, 'w', encoding='utf-8') as f:
+            json.dump(summary_data, f, indent=2, ensure_ascii=False)
         
         self.logger.info(f"結果已保存: {results_file}, {csv_file}")
     
@@ -534,6 +646,20 @@ class ControllerEvaluator:
                 f.write("• 考慮結合多種控制策略的混合方法\n")
         
         self.logger.info(f"評估報告已保存: {report_file}")
+        
+        # 保存簡化版本的摘要（供評估管理器顯示）
+        summary_txt = self.output_dir / "evaluation_summary.txt"
+        with open(summary_txt, 'w', encoding='utf-8') as f:
+            f.write(f"評估時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"評估時長: {self.evaluation_ticks} ticks\n")
+            f.write(f"重複次數: {self.num_runs} 次\n")
+            f.write(f"評估控制器數: {len(self.results)} 個\n\n")
+            
+            if self.results and sorted_by_completion:
+                f.write("最佳控制器排名:\n")
+                for i, (name, data) in enumerate(sorted_by_completion[:3], 1):
+                    avg_perf = data['average_performance']
+                    f.write(f"{i}. {name}: 完成率 {avg_perf['completion_rate']*100:.1f}%\n")
 
 def main():
     parser = argparse.ArgumentParser(description="RMFS控制器性能評估")
@@ -543,6 +669,10 @@ def main():
                        help='每個控制器的重複運行次數')
     parser.add_argument('--output_dir', default='evaluation_results',
                        help='結果輸出目錄')
+    parser.add_argument('--controllers', nargs='+', 
+                       help='指定要評估的控制器列表 (例如: time_based queue_based dqn:path/to/model.pth)')
+    parser.add_argument('--parallel', action='store_true',
+                       help='啟用併行評估模式')
     
     args = parser.parse_args()
     
@@ -552,7 +682,10 @@ def main():
         output_dir=args.output_dir
     )
     
-    results = evaluator.run_evaluation()
+    results = evaluator.run_evaluation(
+        controller_specs=args.controllers,
+        parallel=args.parallel
+    )
     
     print("\n" + "="*50)
     print("📊 評估完成！")

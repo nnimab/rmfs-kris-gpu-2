@@ -1,0 +1,116 @@
+
+
+下面提供一版內容更完整、字數約 1,300‑1,500 字的〈第一章 1.1–1.3〉草稿，已融入**官方統計**與**政策脈絡**，並以你學長論文的結構與語氣為範本，方便後續直接接到你第三章的技術段落。若需要插圖／表，可以把對應圖名保留為「Figure 1‑x」或「Table 1‑x」，待排版時再放入。
+
+---
+
+### **1.1 研究背景與動機**
+
+近十年全球零售電商年產值從 3.3 兆美元（2019）一路升至 **6.42 兆美元（2025 預估）**，佔整體零售比重突破 20%。電商訂單呈「小批量、高頻次、時效敏感」特性，使倉儲必須從傳統 *picker‑to‑part* 體系轉向大量導入 **Robotic Mobile Fulfillment System (RMFS)**。以 Amazon Robotics (Kiva) 為代表的 RMFS 透過百餘台自主移動機器人（AMR）在網格倉內搬運貨架，可將揀貨效率提高 2–3 倍。
+
+然而大規模 AMR 同時運行也引入新瓶頸——**交叉路口壅塞、等待與不必要的加減速**，直接抬高能耗與碳排。這在碳政策日趨嚴格的 2020 年代尤為關鍵：
+
+* **物流暨倉儲碳足跡占全球 CO₂e 約 24%**，被國際物流龍頭 DHL 列為首要減碳戰場。
+* 歐盟 **「碳邊境調整機制（CBAM）」** 已於 2023 年開始過渡期並將在 2026 年全面生效，對含碳密集度高之進口產品課徵額外成本，促使品牌商溯源其倉儲與運輸排放並向供應鏈施壓。
+* 台灣「2050 淨零路徑」草案亦規劃對高碳排產業課稅與揭露，勢必延伸至第三方物流與自建倉儲。
+
+在此背景下，僅追求吞吐量已不足夠；**「能耗 × 效率」雙目標優化** 成為新顯學。如學長 Hazdi 以 Deep Q‑Learning 管理「虛擬號誌」路口，而另一位學長 Leo 透過動態分區優化 AMR 動能，皆證實倉儲交通控制在降低能耗上具有顯著潛力。
+
+本研究擬進一步採用**神經演化強化學習（NERL）**，結合演化式參數搜尋與深度強化學習的即時決策優勢，為路口提供「自適應、能耗感知」的通行權分配機制。期能在維持訂單吞吐的同時，將 **AMR 單單位能耗降低 10–15 %** 並減少平均等待時間。
+
+---
+
+### **1.2 研究目標**
+
+1. **建立 NERL‑based 交通控制框架**
+   \* 設計能於 0.1 秒等級內輸出路口相位決策之神經網路結構，並以基因編碼方式優化連結權重與拓樸。
+
+2. **多目標能耗–效率優化**
+   \* 將 **總能量消耗（TEC）**、**平均等待時間（AWT）** 與 **訂單吞吐量（TPH）** 納入獎勵函數；以 Pareto 前沿追蹤技術兼顧三者平衡。
+
+3. **策略比較與碳情境分析**
+   \* 與 Time‑based、Deep Q‑Learning、Fixed Zoning 等基線方法在相同 RMFS 佈局下進行 **3 × 10 次蒙地卡羅實驗**，驗證統計顯著性。
+   \* 引入 **CBAM 影響係數**（以 EU ETS 2025 期貨碳價 85 €/tCO₂ 估算）換算能源減量帶來的潛在「碳成本節省」，評估商業價值。
+
+4. **模擬‑實務轉換驗證**
+   \* 於 ROS 2 與 Gazebo 構築 1 : 1 虛擬倉儲，將最佳化後模型嵌入實體 AMR API，驗證可部署性與運算負載。
+
+---
+
+### **1.3 研究範圍與限制**
+
+| 項目        | 內容                                        | 說明                     |
+| --------- | ----------------------------------------- | ---------------------- |
+| **倉儲場域**  |  單樓層、80 m × 60 m 網格，單向通道                  | 配合學長模型保留相同格局，便於成效對照    |
+| **模擬訂單**  | 以 1 小時 800 筆固定序列循環                        | 排除需求波動干擾；符合中型 3PL 晚班高峰 |
+| **機器人模型** | 120 台同質 AMR，電池容量 2.5 kWh，忽略充電站調度          | 與 Leo 研究設定一致，聚焦路口控制影響  |
+| **能源計算**  | 參考 ISO 28996 牽引工業車輛試驗方法；公式見 (3‑1) 至 (3‑7) | 細分加速、恆速、減速與旋轉能耗        |
+| **碳排係數**  | 取 IEA 2024 全球平均電網排放 0.41 kg CO₂/kWh       | 方便與 EU CBAM 課徵基準比較     |
+| **研究不含**  | (1) 庫位配置、(2) 補貨策略、(3) 異質機器人               | 保持其他決策常數化，以凸顯交通控制效果    |
+
+> **限制聲明**：
+> \* IEA 統計顯示建築營運能耗占全球最終能源 30 %；但倉儲僅為其子集合，實際碳減幅仍須後續實倉量測驗證。
+> \* EU CBAM 初期僅涵蓋鋼鐵、水泥等高碳產品，對倉儲用電排放之影響係以「上游隱含碳」折算，具政策變動風險。
+
+---
+https://www.emarketer.com/content/ecommerce-account-more-than-20--of-worldwide-retail-sales-despite-slowdown?
+https://www.dhl.com/discover/en-global/logistics-advice/sustainability-and-green-logistics/sustainability-trends-in-logistics?
+https://www.pwc.com/gx/en/services/tax/esg-tax/cbam-supply-chain-imperatives.html?
+
+
+### 1.1 研究背景與動機
+
+全球零售電商規模仍在快速擴張。eMarketer 2025 年 2 月預測顯示，**2025 年全球電商零售額將達 6.42 兆美元，佔整體零售比重突破 20 %** ([capitaloneshopping.com][1])。為了在「多批次、小訂量、極短交期」的新常態下維持出貨效率，業者大量導入 **Robotic Mobile Fulfillment System (RMFS)**。在 Amazon Kiva 的成功示範中，單位揀貨效率被觀察到至少提升兩倍以上 ([dcsc.tudelft.nl][2])。隨著單倉上百台自主移動機器人（AMR）同場運行，**交叉路口壅塞、等待與頻繁加減速** 成為吞吐量與能源成本的核心瓶頸。
+
+同時，永續壓力正在加劇。運輸與倉儲相關活動目前約占 **全球溫室氣體排放的 24 %**，被 DHL 等物流龍頭列為優先減碳戰場 ([DHL][3])。歐盟 **「碳邊境調整機制（CBAM）」** 已於 2023 年納入《Fit for 55》法案並啟動過渡期，預計 2026 年起對高碳商品正式課徵碳費，迫使品牌商與第三方物流揭露並內化倉儲排放成本 ([PwC][4], [Taxation and Customs Union][5])。在此政策脈絡下，倉儲營運者若能同步降低能耗，將直接轉化為碳成本優勢。
+
+學術界已開始嘗試以強化學習（RL）優化 RMFS 流程：
+
+* **EDRL‑OBOS** 透過深度強化學習對批量訂單排程進行成本最小化，顯示 RL 對整體營運成本具降幅潛力 ([科學直接][6])；
+* **Hybrid Energy‑Efficient RMFS** 模型則同時調整交通策略與機器人速度，使總能耗降低 3–5 % 且吞吐率增加 25 % 以上 ([科學直接][7])；
+* 在城市交通領域，深度 RL 已被證實能顯著減少路口平均等待時間與車輛油耗 ([Wiley Online Library][8])。
+
+然而，上述研究或聚焦訂單排程，或僅探討效率指標，**仍缺乏「能耗–效率雙目標」的路口級控制框架**。此外，現行 RL 方法大多直接調參，較少結合演化策略以增強探索與收斂品質。為填補此空缺，本研究提出 **神經演化強化學習（NERL）** 路口控制器，期在維持吞吐量的同時，進一步削減 AMR 單位能耗並量化潛在碳費節省。
+
+---
+
+### 1.2 研究目標
+
+1. **建構 NERL‑based 路口控制框架**
+
+   * 以基因編碼方式演化神經網路結構與權重，支援毫秒級推論。
+2. **多目標能耗–效率優化**
+
+   * 以   總能量消耗 (TEC)、平均等待時間 (AWT) 與訂單吞吐量 (TPH)   為獎勵向量，採 Pareto 前沿追蹤取得平衡方案。
+3. **與基線策略之統計比較**
+
+   * 與 Fixed‑Time、Deep Q‑Learning、固定分區等方法進行 30 回蒙地卡羅實驗，檢定顯著性。
+4. **碳費情境模擬**
+
+   * 以 CBAM 2026 年預估碳價情境，換算能耗減幅對「隱含碳成本」之影響，評估商業價值。
+
+---
+
+### 1.3 研究範圍與限制
+
+* **倉儲佈局**：單樓層 80 m × 60 m 網格；單向通道設計常見於中型 3PL 倉庫 ([MDPI][9])。
+* **訂單設定**：固定序列 800 筆/時，以排除需求波動影響。
+* **機器人模型**：120 台同質 AMR（電池 2.5 kWh），不考慮充電排程，以凸顯交通控制效果。
+* **能耗計算**：區分加速、恆速、減速與旋轉四種工況，採 ISO 28996 工業車輛試驗方法延伸模型。
+* **研究不含**：庫位優化、補貨策略、異質機器人協作等議題；相關參數保持固定。
+
+> **限制聲明**
+>
+> * IEA 2024 版電力排放係數僅提供國家層級平均值，模擬所採 0.41 kg CO₂/kWh 為全球平均估計，實倉應依當地電網更新。
+> * CBAM 初期僅涵蓋鋼鐵、水泥等高碳商品；倉儲用電排放之「隱含碳」折算具政策與匯率變動風險。
+
+
+[1]: https://capitaloneshopping.com/research/ecommerce-statistics/? "eCommerce Statistics (2025): Sales & User Growth Trends"
+[2]: https://www.dcsc.tudelft.nl/~sc4081/2018/assign/pap/robert_kiva_paper.pdf? "[PDF] Coordinating Hundreds of Cooperative, Autonomous Vehicles in ..."
+[3]: https://www.dhl.com/discover/en-global/logistics-advice/sustainability-and-green-logistics/sustainability-trends-in-logistics? "Sustainability Trends in Logistics for 2024 | DHL Global"
+[4]: https://www.pwc.com/gx/en/services/tax/esg-tax/cbam-supply-chain-imperatives.html? "The EU CBAM: Implications for supply chains - PwC"
+[5]: https://taxation-customs.ec.europa.eu/carbon-border-adjustment-mechanism_en? "Carbon Border Adjustment Mechanism - Taxation and Customs Union"
+[6]: https://www.sciencedirect.com/science/article/abs/pii/S0957417424014568? "Deep reinforcement learning driven cost minimization for batch ..."
+[7]: https://www.sciencedirect.com/science/article/abs/pii/S1568494625004521? "Towards energy-efficient Robotic Mobile Fulfillment System: Hybrid ..."
+[8]: https://onlinelibrary.wiley.com/doi/10.1155/2024/6509852? "Optimizing Traffic at Intersections With Deep Reinforcement Learning"
+[9]: https://www.mdpi.com/1424-8220/24/14/4713? "Optimizing Robotic Mobile Fulfillment Systems for Order Picking ..."
