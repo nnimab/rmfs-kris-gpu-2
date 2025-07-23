@@ -478,6 +478,32 @@ view_evaluation_history() {
                 echo -e "${BLUE}評估摘要:${NC}"
                 head -20 "$selected_dir/evaluation_summary.txt"
             fi
+            
+            # 顯示評估的模型
+            if [ -f "$selected_dir/evaluation_summary.json" ]; then
+                echo ""
+                echo -e "${BLUE}評估的控制器:${NC}"
+                if command -v jq &> /dev/null; then
+                    controllers=$(jq -r '.controllers_evaluated[]' "$selected_dir/evaluation_summary.json" 2>/dev/null)
+                    echo "$controllers" | while read controller; do
+                        # 從控制器名稱提取模型路徑
+                        if [[ "$controller" == *":"* ]]; then
+                            model_type=$(echo "$controller" | cut -d':' -f1)
+                            model_path=$(echo "$controller" | cut -d':' -f2-)
+                            model_name=$(basename "$model_path")
+                            echo -e "  • ${CYAN}$model_type${NC}: $model_name"
+                        else
+                            echo -e "  • ${CYAN}$controller${NC}"
+                        fi
+                    done
+                else
+                    # 如果沒有 jq，嘗試用 grep
+                    grep -o '"[^"]*"' "$selected_dir/evaluation_summary.json" | grep -E "time_based|queue_based|dqn:|nerl:" | while read controller; do
+                        controller=$(echo $controller | tr -d '"')
+                        echo -e "  • ${CYAN}$controller${NC}"
+                    done
+                fi
+            fi
         fi
     fi
 }
@@ -492,14 +518,42 @@ show_running_evaluations() {
     if [ $sessions -eq 0 ]; then
         echo -e "${YELLOW}  無正在運行的評估任務${NC}"
     else
-        echo -e "${GREEN}  找到 $sessions 個正在運行的評估任務:${NC}"
+        echo -e "${GREEN}  找到 $sessions 個正在運行的評佰任務:${NC}"
+        local index=1
         screen -ls | grep "rmfs_eval" | while read line; do
             session_name=$(echo $line | awk '{print $1}')
-            echo -e "${GREEN}    - $session_name${NC}"
+            session_time=$(echo $session_name | sed 's/.*rmfs_eval_//')
+            
+            # 嘗試找到對應的評估目錄
+            eval_dir="result/evaluations/EVAL_${session_time}"
+            if [ -d "$eval_dir" ]; then
+                # 讀取評估配置
+                if [ -f "$eval_dir/evaluation.log" ]; then
+                    echo -e "${GREEN}  [$index] $session_name${NC}"
+                    echo -e "${CYAN}      目錄: $eval_dir${NC}"
+                    
+                    # 顯示正在評估的控制器
+                    log_content=$(tail -20 "$eval_dir/evaluation.log" 2>/dev/null | grep -E "開始評估|完成:" | tail -5)
+                    if [ -n "$log_content" ]; then
+                        echo -e "${CYAN}      最新進度:${NC}"
+                        echo "$log_content" | while IFS= read -r line; do
+                            echo -e "${CYAN}        $line${NC}"
+                        done
+                    fi
+                else
+                    echo -e "${GREEN}  [$index] $session_name${NC}"
+                    echo -e "${CYAN}      目錄: $eval_dir (等待開始)${NC}"
+                fi
+            else
+                echo -e "${GREEN}  [$index] $session_name${NC}"
+            fi
+            ((index++))
         done
         
         echo ""
-        echo -e "${BLUE}提示: 使用 'screen -r <session_name>' 查看任務進度${NC}"
+        echo -e "${BLUE}提示:${NC}"
+        echo -e "${BLUE}  查看進度: screen -r <session_name>${NC}"
+        echo -e "${BLUE}  分離會話: Ctrl+A 然後 D${NC}"
     fi
     echo ""
 }
@@ -526,6 +580,93 @@ quick_evaluation() {
     PARALLEL_EVAL=true
     
     run_evaluation
+}
+
+# 查看運行中的評估
+view_running_evaluation() {
+    echo -e "${BLUE}選擇要查看的評估任務:${NC}"
+    echo ""
+    
+    # 檢查 screen 會話
+    sessions=$(screen -ls | grep "rmfs_eval" | awk '{print $1}')
+    if [ -z "$sessions" ]; then
+        echo -e "${YELLOW}無正在運行的評估任務${NC}"
+        return 1
+    fi
+    
+    # 列出所有評估會話，帶編號
+    local index=1
+    declare -a session_array
+    
+    echo "$sessions" | while read session_name; do
+        session_array[$index]="$session_name"
+        session_time=$(echo "$session_name" | sed 's/.*rmfs_eval_//')
+        
+        # 顯示會話資訊
+        echo -e "${CYAN}[$index]${NC} $session_name"
+        
+        # 嘗試顯示正在評估的控制器
+        eval_dir="result/evaluations/EVAL_${session_time}"
+        if [ -d "$eval_dir" ]; then
+            # 從評估摘要讀取控制器資訊
+            if [ -f "$eval_dir/evaluation_summary.json" ]; then
+                echo -e "    ${GREEN}評估目錄: $eval_dir${NC}"
+                if command -v jq &> /dev/null; then
+                    controllers=$(jq -r '.controllers_evaluated[]?' "$eval_dir/evaluation_summary.json" 2>/dev/null | head -5)
+                    if [ -n "$controllers" ]; then
+                        echo -e "    ${GREEN}控制器:${NC}"
+                        echo "$controllers" | while read ctrl; do
+                            if [[ "$ctrl" == *":"* ]]; then
+                                model_type=$(echo "$ctrl" | cut -d':' -f1)
+                                model_path=$(echo "$ctrl" | cut -d':' -f2-)
+                                model_name=$(basename "$model_path")
+                                echo -e "      • ${CYAN}$model_type${NC}: $model_name"
+                            else
+                                echo -e "      • ${CYAN}$ctrl${NC}"
+                            fi
+                        done
+                    fi
+                fi
+            fi
+        fi
+        
+        echo ""
+        ((index++))
+    done
+    
+    # 重新掃描以建立陣列（因為 while 在子 shell 中執行）
+    index=1
+    session_array=()
+    while IFS= read -r session_name; do
+        session_array[$index]="$session_name"
+        ((index++))
+    done <<< "$sessions"
+    
+    echo ""
+    echo -e "${YELLOW}選擇要連接的會話編號 (按 Enter 返回主選單):${NC}"
+    read -p "請選擇: " choice
+    
+    if [ -z "$choice" ]; then
+        return 0
+    fi
+    
+    if [ -n "${session_array[$choice]}" ]; then
+        selected_session="${session_array[$choice]}"
+        echo ""
+        echo -e "${BLUE}連接到: $selected_session${NC}"
+        echo -e "${YELLOW}提示:${NC}"
+        echo -e "${YELLOW}  • 按 Ctrl+C 可以中斷評估${NC}"
+        echo -e "${YELLOW}  • 按 Ctrl+A 然後 D 可以分離會話（保持運行）${NC}"
+        echo -e "${YELLOW}  • 評估完成後按任意鍵退出${NC}"
+        echo ""
+        echo -e "${GREEN}按任意鍵連接...${NC}"
+        read
+        
+        # 連接到 screen 會話
+        screen -r "$selected_session"
+    else
+        echo -e "${RED}無效的選擇${NC}"
+    fi
 }
 
 # 停止評估任務
@@ -671,7 +812,7 @@ main() {
                 ;;
             3)
                 # 查看正在運行的評估
-                show_running_evaluations
+                view_running_evaluation
                 ;;
             4)
                 # 快速評估 (5000 ticks)

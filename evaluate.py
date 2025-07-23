@@ -331,6 +331,8 @@ class ControllerEvaluator:
         if controller_specs:
             # 使用指定的控制器
             controllers_to_evaluate = self.parse_controller_specs(controller_specs)
+            self.logger.info(f"解析控制器規格: {controller_specs}")
+            self.logger.info(f"解析結果: {list(controllers_to_evaluate.keys())}")
         else:
             # 載入所有可用的控制器
             trained_models = self.load_trained_models()
@@ -445,6 +447,9 @@ class ControllerEvaluator:
     def _run_parallel_evaluation(self, controllers_to_evaluate, all_results):
         """併行運行評估"""
         max_workers = min(cpu_count(), len(controllers_to_evaluate) * self.num_runs)
+        
+        self.logger.info(f"併行評估配置: {len(controllers_to_evaluate)} 個控制器, "
+                        f"每個運行 {self.num_runs} 次, 使用 {max_workers} 個進程")
         
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             # 提交所有評估任務
