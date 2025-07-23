@@ -324,6 +324,28 @@ run_evaluation() {
     echo -e "${BLUE}開始執行評估...${NC}"
     echo ""
     
+    # 詢問運行模式
+    echo -e "${YELLOW}選擇評估模式:${NC}"
+    echo -e "  [1] 單一會話模式 (所有模型在同一個 screen 會話中評估)"
+    echo -e "  [2] 多會話模式 (每個模型獨立的 screen 會話)"
+    echo ""
+    read -p "請選擇 [1-2] (預設: 1): " eval_mode
+    eval_mode=${eval_mode:-1}
+    
+    if [ "$eval_mode" = "1" ]; then
+        # 原本的單一會話模式
+        run_single_session_evaluation
+    elif [ "$eval_mode" = "2" ]; then
+        # 新的多會話模式
+        run_multi_session_evaluation
+    else
+        echo -e "${RED}無效的選擇${NC}"
+        return 1
+    fi
+}
+
+# 單一會話評估（原本的邏輯）
+run_single_session_evaluation() {
     # 創建輸出目錄
     timestamp=$(date +%Y%m%d_%H%M%S)
     output_dir="result/evaluations/EVAL_${timestamp}"
@@ -363,7 +385,7 @@ run_evaluation() {
             export PYTHONPATH=$PROJECT_DIR:\$PYTHONPATH
             
             echo '==============================================='
-            echo 'RMFS 評估任務'
+            echo 'RMFS 評估任務 (單一會話)'
             echo '時間: \$(date)'
             echo '輸出目錄: $output_dir'
             echo '==============================================='
@@ -409,6 +431,94 @@ run_evaluation() {
             echo -e "${RED}❌ 評估過程中發生錯誤${NC}"
         fi
     fi
+}
+
+# 多會話評估（每個模型獨立會話）
+run_multi_session_evaluation() {
+    echo -e "${BLUE}多會話模式：為每個模型創建獨立的 screen 會話${NC}"
+    echo ""
+    
+    # 基礎時間戳
+    base_timestamp=$(date +%Y%m%d_%H%M%S)
+    
+    # 為每個控制器創建獨立的評估會話
+    local session_count=0
+    for i in "${!SELECTED_CONTROLLERS[@]}"; do
+        controller="${SELECTED_CONTROLLERS[$i]}"
+        
+        # 生成會話名稱
+        if [[ "$controller" == *":"* ]]; then
+            # AI 模型：提取檔名
+            model_type=$(echo "$controller" | cut -d':' -f1)
+            model_path=$(echo "$controller" | cut -d':' -f2-)
+            model_name=$(basename "$model_path" .pth)
+            # 清理檔名中的特殊字符
+            clean_name=$(echo "$model_name" | sed 's/[^a-zA-Z0-9_-]/_/g' | cut -c1-20)
+            screen_session="rmfs_${model_type}_${clean_name}_${base_timestamp}"
+            display_name="${model_type}: ${model_name}.pth"
+        else
+            # 傳統控制器
+            screen_session="rmfs_${controller}_${base_timestamp}"
+            display_name="$controller"
+        fi
+        
+        # 創建輸出目錄
+        output_dir="result/evaluations/EVAL_${controller//[:]/_}_${base_timestamp}"
+        
+        # 構建單個控制器的評估命令
+        eval_command="python evaluate.py"
+        eval_command="$eval_command --eval_ticks $EVAL_TICKS"
+        eval_command="$eval_command --num_runs $NUM_RUNS"
+        eval_command="$eval_command --output_dir $output_dir"
+        eval_command="$eval_command --controllers $controller"
+        
+        # 創建 screen 會話
+        screen -dmS "$screen_session" bash -c "
+            cd $PROJECT_DIR
+            source .venv/bin/activate
+            export PYTHONPATH=$PROJECT_DIR:\$PYTHONPATH
+            
+            echo '==============================================='
+            echo 'RMFS 評估任務 - 多會話模式'
+            echo '控制器: $display_name'
+            echo '會話名稱: $screen_session'
+            echo '時間: \$(date)'
+            echo '輸出目錄: $output_dir'
+            echo '==============================================='
+            echo ''
+            
+            $eval_command
+            
+            echo ''
+            echo '==============================================='
+            echo '評估完成時間: \$(date)'
+            echo '控制器: $display_name'
+            echo '結果保存在: $output_dir'
+            echo '==============================================='
+            echo ''
+            echo '按任意鍵結束...'
+            read
+        "
+        
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}✅ 啟動評估: $display_name${NC}"
+            echo -e "${CYAN}   會話: $screen_session${NC}"
+            ((session_count++))
+        else
+            echo -e "${RED}❌ 無法啟動評估: $display_name${NC}"
+        fi
+        
+        # 稍微延遲以避免同時啟動太多進程
+        sleep 1
+    done
+    
+    echo ""
+    echo -e "${GREEN}✅ 已啟動 $session_count 個評估會話${NC}"
+    echo ""
+    echo -e "${BLUE}提示:${NC}"
+    echo -e "${BLUE}  • 使用選項 [3] 查看和連接到各個會話${NC}"
+    echo -e "${BLUE}  • 使用 'screen -ls' 查看所有會話${NC}"
+    echo -e "${BLUE}  • 每個模型的結果會保存在獨立的目錄${NC}"
 }
 
 # 生成視覺化圖表
@@ -524,40 +634,46 @@ show_running_evaluations() {
     echo -e "${BLUE}正在運行的評估任務:${NC}"
     echo ""
     
-    # 檢查 screen 會話
-    sessions=$(screen -ls | grep "rmfs_eval" | wc -l)
+    # 檢查所有 rmfs_ 開頭的 screen 會話（包括新格式）
+    sessions=$(screen -ls | grep -E "rmfs_(eval|time_based|queue_based|dqn|nerl)" | wc -l)
     if [ $sessions -eq 0 ]; then
         echo -e "${YELLOW}  無正在運行的評估任務${NC}"
     else
-        echo -e "${GREEN}  找到 $sessions 個正在運行的評佰任務:${NC}"
+        echo -e "${GREEN}  找到 $sessions 個正在運行的評估任務:${NC}"
         local index=1
-        screen -ls | grep "rmfs_eval" | while read line; do
+        screen -ls | grep -E "rmfs_(eval|time_based|queue_based|dqn|nerl)" | while read line; do
             session_name=$(echo $line | awk '{print $1}')
-            session_time=$(echo $session_name | sed 's/.*rmfs_eval_//')
             
-            # 嘗試找到對應的評估目錄
-            eval_dir="result/evaluations/EVAL_${session_time}"
-            if [ -d "$eval_dir" ]; then
-                # 讀取評估配置
-                if [ -f "$eval_dir/evaluation.log" ]; then
-                    echo -e "${GREEN}  [$index] $session_name${NC}"
+            # 解析會話名稱以獲取資訊
+            if [[ "$session_name" == *"rmfs_eval_"* ]]; then
+                # 舊格式：單一會話
+                session_time=$(echo $session_name | sed 's/.*rmfs_eval_//')
+                echo -e "${GREEN}  [$index] $session_name${NC} ${YELLOW}(單一會話模式)${NC}"
+                
+                eval_dir="result/evaluations/EVAL_${session_time}"
+                if [ -d "$eval_dir" ]; then
                     echo -e "${CYAN}      目錄: $eval_dir${NC}"
-                    
-                    # 顯示正在評估的控制器
-                    log_content=$(tail -20 "$eval_dir/evaluation.log" 2>/dev/null | grep -E "開始評估|完成:" | tail -5)
-                    if [ -n "$log_content" ]; then
-                        echo -e "${CYAN}      最新進度:${NC}"
-                        echo "$log_content" | while IFS= read -r line; do
-                            echo -e "${CYAN}        $line${NC}"
-                        done
-                    fi
-                else
-                    echo -e "${GREEN}  [$index] $session_name${NC}"
-                    echo -e "${CYAN}      目錄: $eval_dir (等待開始)${NC}"
                 fi
             else
-                echo -e "${GREEN}  [$index] $session_name${NC}"
+                # 新格式：多會話模式
+                # 從會話名稱提取模型資訊
+                if [[ "$session_name" == *"rmfs_dqn_"* ]]; then
+                    model_info=$(echo $session_name | sed 's/.*rmfs_dqn_//' | sed 's/_[0-9]\{8\}_[0-9]\{6\}$//')
+                    echo -e "${GREEN}  [$index] $session_name${NC}"
+                    echo -e "${PURPLE}      模型: DQN - ${model_info}${NC}"
+                elif [[ "$session_name" == *"rmfs_nerl_"* ]]; then
+                    model_info=$(echo $session_name | sed 's/.*rmfs_nerl_//' | sed 's/_[0-9]\{8\}_[0-9]\{6\}$//')
+                    echo -e "${GREEN}  [$index] $session_name${NC}"
+                    echo -e "${PURPLE}      模型: NERL - ${model_info}${NC}"
+                elif [[ "$session_name" == *"rmfs_time_based_"* ]]; then
+                    echo -e "${GREEN}  [$index] $session_name${NC}"
+                    echo -e "${PURPLE}      模型: Time-based Controller${NC}"
+                elif [[ "$session_name" == *"rmfs_queue_based_"* ]]; then
+                    echo -e "${GREEN}  [$index] $session_name${NC}"
+                    echo -e "${PURPLE}      模型: Queue-based Controller${NC}"
+                fi
             fi
+            
             ((index++))
         done
         
@@ -565,6 +681,7 @@ show_running_evaluations() {
         echo -e "${BLUE}提示:${NC}"
         echo -e "${BLUE}  查看進度: screen -r <session_name>${NC}"
         echo -e "${BLUE}  分離會話: Ctrl+A 然後 D${NC}"
+        echo -e "${BLUE}  使用選項 [3] 選擇並連接到特定會話${NC}"
     fi
     echo ""
 }
@@ -598,8 +715,8 @@ view_running_evaluation() {
     echo -e "${BLUE}選擇要查看的評估任務:${NC}"
     echo ""
     
-    # 檢查 screen 會話
-    sessions=$(screen -ls | grep "rmfs_eval" | awk '{print $1}')
+    # 檢查 screen 會話（包括新舊格式）
+    sessions=$(screen -ls | grep -E "rmfs_(eval|time_based|queue_based|dqn|nerl)" | awk '{print $1}')
     if [ -z "$sessions" ]; then
         echo -e "${YELLOW}無正在運行的評估任務${NC}"
         return 1
@@ -611,33 +728,54 @@ view_running_evaluation() {
     
     echo "$sessions" | while read session_name; do
         session_array[$index]="$session_name"
-        session_time=$(echo "$session_name" | sed 's/.*rmfs_eval_//')
         
         # 顯示會話資訊
         echo -e "${CYAN}[$index]${NC} $session_name"
         
-        # 嘗試顯示正在評估的控制器
-        eval_dir="result/evaluations/EVAL_${session_time}"
-        if [ -d "$eval_dir" ]; then
-            # 從評估摘要讀取控制器資訊
-            if [ -f "$eval_dir/evaluation_summary.json" ]; then
-                echo -e "    ${GREEN}評估目錄: $eval_dir${NC}"
-                if command -v jq &> /dev/null; then
-                    controllers=$(jq -r '.controllers_evaluated[]?' "$eval_dir/evaluation_summary.json" 2>/dev/null | head -5)
-                    if [ -n "$controllers" ]; then
-                        echo -e "    ${GREEN}控制器:${NC}"
-                        echo "$controllers" | while read ctrl; do
-                            if [[ "$ctrl" == *":"* ]]; then
-                                model_type=$(echo "$ctrl" | cut -d':' -f1)
-                                model_path=$(echo "$ctrl" | cut -d':' -f2-)
-                                model_name=$(basename "$model_path")
-                                echo -e "      • ${CYAN}$model_type${NC}: $model_name"
-                            else
-                                echo -e "      • ${CYAN}$ctrl${NC}"
-                            fi
-                        done
+        # 根據會話名稱格式顯示不同資訊
+        if [[ "$session_name" == *"rmfs_eval_"* ]]; then
+            # 舊格式：單一會話模式
+            session_time=$(echo "$session_name" | sed 's/.*rmfs_eval_//')
+            echo -e "    ${YELLOW}模式: 單一會話（所有模型在此會話中）${NC}"
+            
+            eval_dir="result/evaluations/EVAL_${session_time}"
+            if [ -d "$eval_dir" ]; then
+                # 從評估摘要讀取控制器資訊
+                if [ -f "$eval_dir/evaluation_summary.json" ]; then
+                    echo -e "    ${GREEN}評估目錄: $eval_dir${NC}"
+                    if command -v jq &> /dev/null; then
+                        controllers=$(jq -r '.controllers_evaluated[]?' "$eval_dir/evaluation_summary.json" 2>/dev/null | head -5)
+                        if [ -n "$controllers" ]; then
+                            echo -e "    ${GREEN}控制器:${NC}"
+                            echo "$controllers" | while read ctrl; do
+                                if [[ "$ctrl" == *":"* ]]; then
+                                    model_type=$(echo "$ctrl" | cut -d':' -f1)
+                                    model_path=$(echo "$ctrl" | cut -d':' -f2-)
+                                    model_name=$(basename "$model_path")
+                                    echo -e "      • ${CYAN}$model_type${NC}: $model_name"
+                                else
+                                    echo -e "      • ${CYAN}$ctrl${NC}"
+                                fi
+                            done
+                        fi
                     fi
                 fi
+            fi
+        else
+            # 新格式：多會話模式
+            echo -e "    ${YELLOW}模式: 獨立會話${NC}"
+            
+            # 解析模型類型和名稱
+            if [[ "$session_name" == *"rmfs_dqn_"* ]]; then
+                model_info=$(echo $session_name | sed 's/.*rmfs_dqn_//' | sed 's/_[0-9]\{8\}_[0-9]\{6\}$//')
+                echo -e "    ${PURPLE}模型: DQN - ${model_info}.pth${NC}"
+            elif [[ "$session_name" == *"rmfs_nerl_"* ]]; then
+                model_info=$(echo $session_name | sed 's/.*rmfs_nerl_//' | sed 's/_[0-9]\{8\}_[0-9]\{6\}$//')
+                echo -e "    ${PURPLE}模型: NERL - ${model_info}.pth${NC}"
+            elif [[ "$session_name" == *"rmfs_time_based_"* ]]; then
+                echo -e "    ${PURPLE}模型: Time-based Controller${NC}"
+            elif [[ "$session_name" == *"rmfs_queue_based_"* ]]; then
+                echo -e "    ${PURPLE}模型: Queue-based Controller${NC}"
             fi
         fi
         
