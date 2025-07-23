@@ -363,8 +363,13 @@ run_single_session_evaluation() {
     done
     
     # 如果啟用併行，添加併行參數
-    if [ "$PARALLEL_EVAL" = true ]; then
+    # 注意：多會話模式下不需要 --parallel，因為每個 screen 已經是獨立進程
+    if [ "$PARALLEL_EVAL" = true ] && [ "$enable_multi_session" = false ]; then
         eval_command="$eval_command --parallel"
+        echo -e "${YELLOW}⚡ 並行模式已啟用（單一會話內部並行）${NC}"
+    elif [ "$PARALLEL_EVAL" = true ] && [ "$enable_multi_session" = true ]; then
+        echo -e "${YELLOW}⚠️  注意：多會話模式已經是並行執行，--parallel 參數將被忽略${NC}"
+        echo -e "${YELLOW}   每個模型在獨立的 screen 會話中運行${NC}"
     fi
     
     # 顯示即將執行的命令
@@ -845,8 +850,8 @@ view_running_evaluation() {
 stop_evaluation_task() {
     echo -e "${BLUE}正在運行的評估任務:${NC}"
     
-    # 檢查 screen 會話
-    sessions=$(screen -ls | grep "rmfs_eval" | awk '{print $1}')
+    # 檢查所有 RMFS 相關的 screen 會話（包括新舊格式）
+    sessions=$(screen -ls | grep -E "rmfs_(eval|time_based|queue_based|dqn|nerl)" | awk '{print $1}')
     if [ -z "$sessions" ]; then
         echo -e "${YELLOW}  無正在運行的評估任務${NC}"
         return 1
