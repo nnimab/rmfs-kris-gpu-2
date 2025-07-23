@@ -8,6 +8,8 @@ import argparse
 import os
 import json
 import time
+import signal
+import sys
 import numpy as np
 import pandas as pd
 from datetime import datetime
@@ -15,6 +17,21 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import cpu_count
+
+# 全域變數用於追蹤中斷
+interrupted = False
+
+def signal_handler(sig, frame):
+    """處理中斷信號"""
+    global interrupted
+    interrupted = True
+    print("\n\n⚠️  收到中斷信號，正在安全停止評估...")
+    print("請稍候，正在保存已完成的結果...")
+    # 不立即退出，讓程序有機會保存結果
+
+# 設置信號處理器
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 # 導入必要的模組
 import netlogo
@@ -347,10 +364,20 @@ class ControllerEvaluator:
         else:
             # 串行評估
             for controller_name, controller_config in controllers_to_evaluate.items():
+                # 檢查是否被中斷
+                if interrupted:
+                    self.logger.warning("評估被用戶中斷")
+                    break
+                    
                 self.logger.info(f"開始評估控制器: {controller_name}")
                 
                 controller_results = []
                 for run_id in range(self.num_runs):
+                    # 檢查是否被中斷
+                    if interrupted:
+                        self.logger.warning(f"在運行 {run_id + 1}/{self.num_runs} 時被中斷")
+                        break
+                        
                     result = self.evaluate_controller(controller_name, controller_config, run_id)
                     if result:
                         controller_results.append(result)
@@ -365,16 +392,30 @@ class ControllerEvaluator:
                         'config': controller_config
                     }
         
-        # 保存結果
-        self.save_results(all_results)
-        
-        # 生成比較圖表
-        self.generate_comparison_charts()
-        
-        # 生成報告
-        self.generate_evaluation_report()
-        
-        self.logger.info("評估完成")
+        # 保存結果（即使被中斷也要保存）
+        if all_results:
+            self.save_results(all_results)
+            
+            # 只有在沒被中斷的情況下才生成完整報告
+            if not interrupted:
+                # 生成比較圖表
+                self.generate_comparison_charts()
+                
+                # 生成報告
+                self.generate_evaluation_report()
+                
+                self.logger.info("評估完成")
+            else:
+                self.logger.warning("評估被中斷，已保存部分結果")
+                # 保存中斷狀態
+                interrupt_file = self.output_dir / "evaluation_interrupted.txt"
+                with open(interrupt_file, 'w', encoding='utf-8') as f:
+                    f.write(f"評估在 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} 被中斷\n")
+                    f.write(f"已完成的評估: {len(all_results)} 個運行\n")
+                    f.write(f"已評估的控制器: {', '.join(self.results.keys())}\n")
+        else:
+            self.logger.error("沒有完成任何評估")
+            
         return self.results
     
     def calculate_average_performance(self, results):
@@ -423,6 +464,14 @@ class ControllerEvaluator:
             controller_results_map = {name: [] for name in controllers_to_evaluate}
             
             for future in as_completed(future_to_task):
+                # 檢查是否被中斷
+                if interrupted:
+                    self.logger.warning("併行評估被用戶中斷")
+                    # 取消所有待處理的任務
+                    for f in future_to_task:
+                        f.cancel()
+                    break
+                    
                 controller_name, run_id = future_to_task[future]
                 try:
                     result = future.result()

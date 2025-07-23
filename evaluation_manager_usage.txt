@@ -21,6 +21,12 @@ RMFS 評估管理器使用說明
 - 自動顯示最近 10 次評估結果
 - 可查看每次評估的詳細報告
 
+## 4. 停止評估功能 (新增)
+- 選項 [7]：停止正在運行的評估
+- 支援停止單個或所有評估任務
+- 自動檢測 screen 會話和 Python 進程
+- 安全中斷：即使中斷也會保存已完成的結果
+
 ## 評估器支援的控制器格式
 
 ### 傳統控制器
@@ -50,7 +56,32 @@ python evaluate.py --parallel --eval_ticks 20000
   - evaluation_comparison_*.png：比較圖表
   - evaluation_summary.json：評估摘要
 
+## 停止評估的方式
+
+### 方式一：使用評估管理器
+1. 在主選單選擇 [7] 停止評估
+2. 選擇要停止的任務編號或輸入 'all' 停止所有
+3. 確認後會安全停止評估並保存結果
+
+### 方式二：直接操作
+- 查看 screen 會話：`screen -ls`
+- 連接到會話：`screen -r rmfs_eval_XXXXXX`
+- 在會話內按 Ctrl+C 中斷
+- 分離會話：Ctrl+A 然後 D
+
+### 方式三：終止進程
+- 查看評估進程：`ps aux | grep "python evaluate.py"`
+- 發送終止信號：`kill -15 PID`（會觸發安全停止）
+- 強制終止：`kill -9 PID`（不建議，可能丟失結果）
+
+## 中斷後的結果
+- 部分結果會被保存在 evaluation_results_*.json
+- 會生成 evaluation_interrupted.txt 記錄中斷狀態
+- 可以查看已完成的控制器評估結果
+
 ## 注意事項
 1. 評估前確保已有訓練好的模型在 models/ 目錄
 2. 併行模式會加快評估速度但增加系統負載
 3. 背景運行使用 screen，可用 screen -r 查看進度
+4. 中斷評估時會自動保存已完成的結果
+5. 使用 kill -15 而非 kill -9 以確保安全停止

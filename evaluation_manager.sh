@@ -494,10 +494,99 @@ show_main_menu() {
     echo "  [5] 標準評估所有控制器 (20000 ticks)"
     echo "  [6] 完整評估所有控制器 (50000 ticks)"
     echo ""
+    echo -e "${YELLOW}任務管理:${NC}"
+    echo "  [7] 停止正在運行的評估"
+    echo ""
     echo -e "${RED}其他選項:${NC}"
     echo "  [0] 離開"
     echo ""
     echo -e "${BLUE}================================================================${NC}"
+}
+
+# 停止評估任務
+stop_evaluation_task() {
+    echo -e "${BLUE}正在運行的評估任務:${NC}"
+    
+    # 檢查 screen 會話
+    sessions=$(screen -ls | grep "rmfs_eval" | awk '{print $1}')
+    if [ -z "$sessions" ]; then
+        echo -e "${YELLOW}  無正在運行的評估任務${NC}"
+        return 1
+    fi
+    
+    # 列出所有評估會話
+    echo "$sessions" | nl -w3 -s') '
+    echo ""
+    
+    echo -e "${YELLOW}選擇要停止的任務編號，或輸入 'all' 停止所有任務${NC}"
+    read -p "請選擇: " choice
+    
+    if [ "$choice" = "all" ]; then
+        # 停止所有評估任務
+        echo -e "${RED}確定要停止所有評估任務嗎? (y/N)${NC}"
+        read -p "輸入 'y' 確認: " confirm
+        
+        if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+            echo "$sessions" | while read session_name; do
+                screen -S "$session_name" -X quit
+                echo -e "${GREEN}✅ 已停止: $session_name${NC}"
+            done
+            echo -e "${GREEN}所有評估任務已停止${NC}"
+        else
+            echo -e "${YELLOW}取消操作${NC}"
+        fi
+    elif [[ "$choice" =~ ^[0-9]+$ ]]; then
+        # 停止特定任務
+        session_name=$(echo "$sessions" | sed -n "${choice}p")
+        if [ -z "$session_name" ]; then
+            echo -e "${RED}無效的選擇${NC}"
+            return 1
+        fi
+        
+        echo -e "${RED}確定要停止任務 '$session_name' 嗎? (y/N)${NC}"
+        read -p "輸入 'y' 確認: " confirm
+        
+        if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+            screen -S "$session_name" -X quit
+            echo -e "${GREEN}✅ 任務 '$session_name' 已停止${NC}"
+        else
+            echo -e "${YELLOW}取消操作${NC}"
+        fi
+    else
+        echo -e "${RED}無效的選擇${NC}"
+    fi
+    
+    # 同時檢查是否有 Python 評估進程在運行
+    echo ""
+    echo -e "${BLUE}檢查 Python 評估進程...${NC}"
+    
+    eval_procs=$(ps aux | grep "python evaluate.py" | grep -v grep)
+    if [ -n "$eval_procs" ]; then
+        echo -e "${YELLOW}發現以下 Python 評估進程:${NC}"
+        echo "$eval_procs" | while IFS= read -r line; do
+            pid=$(echo "$line" | awk '{print $2}')
+            cmd=$(echo "$line" | awk '{for(i=11;i<=NF;i++) printf "%s ", $i; print ""}')
+            echo -e "  PID: ${CYAN}$pid${NC} - $cmd"
+        done
+        
+        echo ""
+        echo -e "${YELLOW}是否要終止這些 Python 進程? (y/N)${NC}"
+        read -p "請選擇: " kill_python
+        
+        if [ "$kill_python" = "y" ] || [ "$kill_python" = "Y" ]; then
+            echo "$eval_procs" | while IFS= read -r line; do
+                pid=$(echo "$line" | awk '{print $2}')
+                kill -15 $pid 2>/dev/null
+                if [ $? -eq 0 ]; then
+                    echo -e "${GREEN}✅ 已終止進程 PID: $pid${NC}"
+                else
+                    echo -e "${RED}❌ 無法終止進程 PID: $pid (可能需要 sudo 權限)${NC}"
+                fi
+            done
+        fi
+    else
+        echo -e "${GREEN}沒有發現運行中的 Python 評估進程${NC}"
+    fi
 }
 
 # 快速評估函數
@@ -538,7 +627,7 @@ main() {
         show_running_evaluations
         show_main_menu
         
-        read -p "請選擇 [0-6]: " choice
+        read -p "請選擇 [0-7]: " choice
         
         case $choice in
             1)
@@ -576,6 +665,10 @@ main() {
             6)
                 # 完整評估 (50000 ticks)
                 quick_evaluation 50000 "完整評估"
+                ;;
+            7)
+                # 停止評估任務
+                stop_evaluation_task
                 ;;
             0)
                 echo -e "${GREEN}感謝使用 RMFS 評估管理器！${NC}"
