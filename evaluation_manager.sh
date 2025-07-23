@@ -163,43 +163,54 @@ scan_available_models() {
         
         local count=0
         for run_dir in $(ls -dt models/training_runs/*/); do
-            if [ -f "$run_dir/best_model.pth" ] && [ -f "$run_dir/metadata.json" ]; then
-                run_name=$(basename "$run_dir")
-                
-                # 嘗試讀取 metadata
-                if command -v jq &> /dev/null; then
-                    agent_type=$(jq -r '.agent_type // "unknown"' "$run_dir/metadata.json" 2>/dev/null)
-                    reward_mode=$(jq -r '.reward_mode // "unknown"' "$run_dir/metadata.json" 2>/dev/null)
-                    variant=$(jq -r '.variant // ""' "$run_dir/metadata.json" 2>/dev/null)
+            run_name=$(basename "$run_dir")
+            
+            # 掃描該目錄下的所有 .pth 檔案（不進入子目錄）
+            for pth_file in "$run_dir"*.pth; do
+                if [ -f "$pth_file" ]; then
+                    pth_name=$(basename "$pth_file")
                     
-                    desc="$agent_type/$reward_mode"
-                    if [ -n "$variant" ] && [ "$variant" != "null" ]; then
-                        desc="$desc/$variant"
-                    fi
-                else
-                    # 從目錄名稱提取資訊
-                    if [[ "$run_name" == *"nerl"* ]]; then
-                        agent_type="nerl"
-                    elif [[ "$run_name" == *"dqn"* ]]; then
-                        agent_type="dqn"
+                    # 從 metadata 或目錄名稱判斷類型
+                    if [ -f "$run_dir/metadata.json" ] && command -v jq &> /dev/null; then
+                        agent_type=$(jq -r '.agent_type // "unknown"' "$run_dir/metadata.json" 2>/dev/null)
+                        reward_mode=$(jq -r '.reward_mode // "unknown"' "$run_dir/metadata.json" 2>/dev/null)
+                        variant=$(jq -r '.variant // ""' "$run_dir/metadata.json" 2>/dev/null)
+                        
+                        desc="$agent_type/$reward_mode"
+                        if [ -n "$variant" ] && [ "$variant" != "null" ]; then
+                            desc="$desc/$variant"
+                        fi
                     else
-                        agent_type="unknown"
+                        # 從目錄名稱提取資訊
+                        if [[ "$run_name" == *"nerl"* ]]; then
+                            agent_type="nerl"
+                        elif [[ "$run_name" == *"dqn"* ]]; then
+                            agent_type="dqn"
+                        else
+                            agent_type="unknown"
+                        fi
+                        desc="$run_name"
                     fi
-                    desc="$run_name"
+                    
+                    # 添加到列表
+                    CONTROLLER_LIST+=("$index")
+                    CONTROLLER_DISPLAY+=("$desc - $pth_name")
+                    CONTROLLER_SPEC+=("$agent_type:$pth_file")
+                    echo -e "  ${CYAN}[$index]${NC} $desc - $pth_name"
+                    ((index++))
+                    ((count++))
+                    
+                    # 限制每個目錄只顯示前幾個 pth 檔案
+                    if [ $count -ge 3 ]; then
+                        break
+                    fi
                 fi
-                
-                CONTROLLER_LIST+=("$index")
-                CONTROLLER_DISPLAY+=("$desc (歷史模型)")
-                CONTROLLER_SPEC+=("$agent_type:${run_dir}best_model.pth")
-                echo -e "  ${CYAN}[$index]${NC} $desc - ${run_dir}best_model.pth"
-                ((index++))
-                ((count++))
-                
-                # 限制顯示數量
-                if [ $count -ge 10 ]; then
-                    echo -e "  ${YELLOW}... (更多歷史模型可在 models/training_runs/ 查看)${NC}"
-                    break
-                fi
+            done
+            
+            # 限制總顯示數量
+            if [ $count -ge 15 ]; then
+                echo -e "  ${YELLOW}... (更多歷史模型可在 models/training_runs/ 查看)${NC}"
+                break
             fi
         done
     fi
