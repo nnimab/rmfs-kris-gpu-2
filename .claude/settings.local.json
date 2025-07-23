@@ -17,7 +17,10 @@
       "Bash(mkdir:*)",
       "Bash(chmod:*)",
       "Bash(./test_model_scan.sh:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(./test_scan.sh:*)"
     ],
     "deny": []
   }

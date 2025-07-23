@@ -383,12 +383,20 @@ run_single_session_evaluation() {
             cd $PROJECT_DIR
             source .venv/bin/activate
             export PYTHONPATH=$PROJECT_DIR:\$PYTHONPATH
+            export LANG=zh_TW.UTF-8
+            export LC_ALL=zh_TW.UTF-8
             
             echo '==============================================='
             echo 'RMFS 評估任務 (單一會話)'
-            echo '時間: \$(date)'
-            echo '輸出目錄: $output_dir'
+            echo \"時間: \$(date)\"
+            echo \"輸出目錄: $output_dir\"
             echo '==============================================='
+            
+            # 創建輸出目錄
+            mkdir -p $output_dir
+            
+            echo \"執行命令: $eval_command\"
+            echo ''
             
             $eval_command
             
@@ -462,8 +470,15 @@ run_multi_session_evaluation() {
             display_name="$controller"
         fi
         
-        # 創建輸出目錄
-        output_dir="result/evaluations/EVAL_${controller//[:]/_}_${base_timestamp}"
+        # 創建輸出目錄（簡化路徑）
+        if [[ "$controller" == *":"* ]]; then
+            # 從控制器規格提取簡化名稱
+            controller_simple=$(echo "$controller" | cut -d':' -f1)
+            model_basename=$(basename "$(echo "$controller" | cut -d':' -f2-)" .pth)
+            output_dir="result/evaluations/EVAL_${controller_simple}_${model_basename}_${base_timestamp}"
+        else
+            output_dir="result/evaluations/EVAL_${controller}_${base_timestamp}"
+        fi
         
         # 構建單個控制器的評估命令
         eval_command="python evaluate.py"
@@ -477,23 +492,31 @@ run_multi_session_evaluation() {
             cd $PROJECT_DIR
             source .venv/bin/activate
             export PYTHONPATH=$PROJECT_DIR:\$PYTHONPATH
+            export LANG=zh_TW.UTF-8
+            export LC_ALL=zh_TW.UTF-8
             
             echo '==============================================='
             echo 'RMFS 評估任務 - 多會話模式'
-            echo '控制器: $display_name'
-            echo '會話名稱: $screen_session'
-            echo '時間: \$(date)'
-            echo '輸出目錄: $output_dir'
+            echo \"控制器: $display_name\"
+            echo \"會話名稱: $screen_session\"
+            echo \"時間: \$(date)\"
+            echo \"輸出目錄: $output_dir\"
             echo '==============================================='
+            echo ''
+            
+            # 創建輸出目錄
+            mkdir -p $output_dir
+            
+            echo \"執行命令: $eval_command\"
             echo ''
             
             $eval_command
             
             echo ''
             echo '==============================================='
-            echo '評估完成時間: \$(date)'
-            echo '控制器: $display_name'
-            echo '結果保存在: $output_dir'
+            echo \"評估完成時間: \$(date)\"
+            echo \"控制器: $display_name\"
+            echo \"結果保存在: $output_dir\"
             echo '==============================================='
             echo ''
             echo '按任意鍵結束...'
