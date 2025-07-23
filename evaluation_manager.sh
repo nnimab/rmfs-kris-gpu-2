@@ -849,49 +849,80 @@ view_running_evaluation() {
 # 停止評估任務
 stop_evaluation_task() {
     echo -e "${BLUE}正在運行的評估任務:${NC}"
+    echo ""
     
     # 檢查所有 RMFS 相關的 screen 會話（包括新舊格式）
-    sessions=$(screen -ls | grep -E "rmfs_(eval|time_based|queue_based|dqn|nerl)" | awk '{print $1}')
-    if [ -z "$sessions" ]; then
+    # 注意：screen -ls 輸出格式可能包含 PID.session_name 或其他資訊
+    local session_list=$(screen -ls | grep -E "rmfs_(eval|time_based|queue_based|dqn|nerl)")
+    
+    if [ -z "$session_list" ]; then
         echo -e "${YELLOW}  無正在運行的評估任務${NC}"
         return 1
     fi
     
-    # 列出所有評估會話
-    echo "$sessions" | nl -w3 -s') '
-    echo ""
+    # 建立會話陣列
+    declare -a session_array
+    local index=1
     
-    echo -e "${YELLOW}選擇要停止的任務編號，或輸入 'all' 停止所有任務${NC}"
+    # 解析會話並顯示
+    while IFS= read -r line; do
+        # 提取會話名稱（格式可能是 PID.session_name 或其他）
+        session_full=$(echo "$line" | awk '{print $1}')
+        # 只取會話名稱部分（去掉 PID）
+        session_name=$(echo "$session_full" | cut -d'.' -f2-)
+        
+        session_array[$index]="$session_full"
+        echo -e "  ${CYAN}[$index]${NC} $session_name"
+        
+        ((index++))
+    done <<< "$session_list"
+    
+    echo ""
+    echo -e "${YELLOW}選擇要停止的任務編號 [1-$((index-1))]，或輸入 'all' 停止所有任務，0 取消:${NC}"
     read -p "請選擇: " choice
     
-    if [ "$choice" = "all" ]; then
+    if [ "$choice" = "0" ]; then
+        echo -e "${YELLOW}已取消${NC}"
+        return 0
+    elif [ "$choice" = "all" ]; then
         # 停止所有評估任務
-        echo -e "${RED}確定要停止所有評估任務嗎? (y/N)${NC}"
+        echo -e "${RED}確定要停止所有 $((index-1)) 個評估任務嗎? (y/N)${NC}"
         read -p "輸入 'y' 確認: " confirm
         
         if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-            echo "$sessions" | while read session_name; do
-                screen -S "$session_name" -X quit
-                echo -e "${GREEN}✅ 已停止: $session_name${NC}"
+            for i in "${!session_array[@]}"; do
+                if [ -n "${session_array[$i]}" ]; then
+                    session_full="${session_array[$i]}"
+                    session_name=$(echo "$session_full" | cut -d'.' -f2-)
+                    
+                    screen -S "$session_full" -X quit 2>/dev/null
+                    if [ $? -eq 0 ]; then
+                        echo -e "${GREEN}✅ 已停止: $session_name${NC}"
+                    else
+                        echo -e "${RED}❌ 無法停止: $session_name${NC}"
+                    fi
+                fi
             done
-            echo -e "${GREEN}所有評估任務已停止${NC}"
+            echo -e "${GREEN}批次停止完成${NC}"
         else
             echo -e "${YELLOW}取消操作${NC}"
         fi
-    elif [[ "$choice" =~ ^[0-9]+$ ]]; then
+    elif [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -lt "$index" ]; then
         # 停止特定任務
-        session_name=$(echo "$sessions" | sed -n "${choice}p")
-        if [ -z "$session_name" ]; then
-            echo -e "${RED}無效的選擇${NC}"
-            return 1
-        fi
+        session_full="${session_array[$choice]}"
+        session_name=$(echo "$session_full" | cut -d'.' -f2-)
         
         echo -e "${RED}確定要停止任務 '$session_name' 嗎? (y/N)${NC}"
         read -p "輸入 'y' 確認: " confirm
         
         if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-            screen -S "$session_name" -X quit
-            echo -e "${GREEN}✅ 任務 '$session_name' 已停止${NC}"
+            screen -S "$session_full" -X quit 2>/dev/null
+            if [ $? -eq 0 ]; then
+                echo -e "${GREEN}✅ 任務 '$session_name' 已停止${NC}"
+            else
+                echo -e "${RED}❌ 無法停止任務 '$session_name'${NC}"
+                echo -e "${YELLOW}提示：可能需要使用 kill 命令${NC}"
+            fi
         else
             echo -e "${YELLOW}取消操作${NC}"
         fi
