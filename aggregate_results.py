@@ -13,15 +13,9 @@ from pathlib import Path
 from datetime import datetime
 import argparse
 
-# 設置字體
-try:
-    from fix_matplotlib_font import setup_matplotlib_font, get_chart_labels
-    chinese_support = setup_matplotlib_font()
-except:
-    # 如果無法載入修復模組，使用基本設置
-    plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
-    plt.rcParams['axes.unicode_minus'] = False
-    chinese_support = False
+# 設置字體 - 直接使用英文避免字體問題
+plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+plt.rcParams['axes.unicode_minus'] = False
 
 class ResultAggregator:
     def __init__(self, evaluation_dirs, output_dir=None):
@@ -38,17 +32,17 @@ class ResultAggregator:
         
     def load_all_results(self):
         """載入所有評估結果"""
-        print(f"正在載入 {len(self.evaluation_dirs)} 個評估結果...")
+        print(f"Loading {len(self.evaluation_dirs)} evaluation results...")
         
         for eval_dir in self.evaluation_dirs:
             if not eval_dir.exists():
-                print(f"警告：目錄不存在 - {eval_dir}")
+                print(f"Warning: Directory not found - {eval_dir}")
                 continue
                 
             # 尋找 JSON 結果文件
             json_files = list(eval_dir.glob("evaluation_results_*.json"))
             if not json_files:
-                print(f"警告：未找到結果文件 - {eval_dir}")
+                print(f"Warning: No result files found - {eval_dir}")
                 continue
                 
             # 載入最新的結果文件
@@ -63,19 +57,19 @@ class ResultAggregator:
                 for controller_name, controller_data in results.items():
                     if controller_name not in self.aggregated_results:
                         self.aggregated_results[controller_name] = controller_data
-                        print(f"✓ 載入 {controller_name} 的結果")
+                        print(f"✓ Loaded results for {controller_name}")
                     else:
-                        print(f"⚠ 跳過重複的 {controller_name}")
+                        print(f"⚠ Skipping duplicate {controller_name}")
                         
             except Exception as e:
-                print(f"錯誤：無法載入 {latest_json} - {e}")
+                print(f"Error: Failed to load {latest_json} - {e}")
                 
-        print(f"\n成功載入 {len(self.aggregated_results)} 個控制器的結果")
+        print(f"\nSuccessfully loaded results for {len(self.aggregated_results)} controllers")
         
     def generate_comparison_charts(self):
         """生成比較圖表（與 evaluate.py 相同的邏輯）"""
         if not self.aggregated_results:
-            print("錯誤：沒有可用的結果進行比較")
+            print("Error: No results available for comparison")
             return
             
         # 準備數據
@@ -95,15 +89,15 @@ class ResultAggregator:
         
         # 創建比較圖表
         fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-        fig.suptitle('控制器性能評估比較（多會話聚合）', fontsize=16, fontweight='bold')
+        fig.suptitle('Controller Performance Comparison (Multi-Session Aggregation)', fontsize=16, fontweight='bold')
         
         # 設置顏色
         colors = plt.cm.Set3(np.linspace(0, 1, len(controllers)))
         
         # 完成率比較
         bars1 = axes[0,0].bar(controllers, completion_rates, color=colors)
-        axes[0,0].set_title('訂單完成率比較', fontweight='bold')
-        axes[0,0].set_ylabel('完成率 (%)')
+        axes[0,0].set_title('Order Completion Rate', fontweight='bold')
+        axes[0,0].set_ylabel('Completion Rate (%)')
         axes[0,0].tick_params(axis='x', rotation=45)
         
         # 添加數值標籤
@@ -114,8 +108,8 @@ class ResultAggregator:
         
         # 平均等待時間比較
         bars2 = axes[0,1].bar(controllers, avg_wait_times, color=colors)
-        axes[0,1].set_title('平均等待時間比較', fontweight='bold')
-        axes[0,1].set_ylabel('等待時間 (ticks)')
+        axes[0,1].set_title('Average Wait Time', fontweight='bold')
+        axes[0,1].set_ylabel('Wait Time (ticks)')
         axes[0,1].tick_params(axis='x', rotation=45)
         
         for bar, wait in zip(bars2, avg_wait_times):
@@ -125,8 +119,8 @@ class ResultAggregator:
         
         # 能源效率比較
         bars3 = axes[1,0].bar(controllers, energy_per_orders, color=colors)
-        axes[1,0].set_title('能源效率比較', fontweight='bold')
-        axes[1,0].set_ylabel('每訂單能源消耗')
+        axes[1,0].set_title('Energy Efficiency', fontweight='bold')
+        axes[1,0].set_ylabel('Energy per Order')
         axes[1,0].tick_params(axis='x', rotation=45)
         
         for bar, energy in zip(bars3, energy_per_orders):
@@ -137,8 +131,8 @@ class ResultAggregator:
         
         # 機器人利用率比較
         bars4 = axes[1,1].bar(controllers, robot_utilizations, color=colors)
-        axes[1,1].set_title('機器人利用率比較', fontweight='bold')
-        axes[1,1].set_ylabel('利用率 (%)')
+        axes[1,1].set_title('Robot Utilization', fontweight='bold')
+        axes[1,1].set_ylabel('Utilization (%)')
         axes[1,1].tick_params(axis='x', rotation=45)
         
         for bar, util in zip(bars4, robot_utilizations):
@@ -154,7 +148,7 @@ class ResultAggregator:
         plt.savefig(chart_file, dpi=300, bbox_inches='tight')
         plt.close()
         
-        print(f"\n✓ 比較圖表已保存: {chart_file}")
+        print(f"\n✓ Comparison chart saved: {chart_file}")
         
     def generate_aggregated_report(self):
         """生成聚合報告"""
@@ -201,7 +195,7 @@ class ResultAggregator:
                     if avg_perf.get('energy_per_order', 0) > 0:
                         f.write(f"  每訂單能源消耗: {avg_perf['energy_per_order']:.0f}\n")
         
-        print(f"✓ 聚合報告已保存: {report_file}")
+        print(f"✓ Aggregated report saved: {report_file}")
         
     def save_aggregated_json(self):
         """保存聚合的 JSON 結果"""
@@ -215,7 +209,7 @@ class ResultAggregator:
                 'results': self.aggregated_results
             }, f, indent=2, ensure_ascii=False)
             
-        print(f"✓ 聚合結果已保存: {json_file}")
+        print(f"✓ Aggregated results saved: {json_file}")
         
 def main():
     parser = argparse.ArgumentParser(description="聚合多個評估會話的結果")
@@ -230,16 +224,16 @@ def main():
     aggregator = ResultAggregator(args.directories, args.output)
     
     # 執行聚合
-    print("開始聚合評估結果...\n")
+    print("Starting result aggregation...\n")
     aggregator.load_all_results()
     
     if aggregator.aggregated_results:
         aggregator.generate_comparison_charts()
         aggregator.generate_aggregated_report()
         aggregator.save_aggregated_json()
-        print("\n✅ 聚合完成！")
+        print("\n✅ Aggregation completed!")
     else:
-        print("\n❌ 沒有找到可用的評估結果")
+        print("\n❌ No evaluation results found")
 
 if __name__ == "__main__":
     main()
