@@ -18,6 +18,43 @@ import matplotlib.pyplot as plt
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import cpu_count
 
+# 設置 matplotlib 字體
+try:
+    from fix_matplotlib_font import setup_matplotlib_font, get_chart_labels
+    chinese_support = setup_matplotlib_font()
+except:
+    # 如果無法載入修復模組，使用基本設置
+    import matplotlib
+    matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans']
+    matplotlib.rcParams['axes.unicode_minus'] = False
+    chinese_support = False
+    
+    def get_chart_labels(chinese_support=True):
+        if chinese_support:
+            return {
+                'title': '控制器性能評估比較',
+                'completion_rate': '訂單完成率比較',
+                'wait_time': '平均等待時間比較',
+                'energy': '能源效率比較',
+                'utilization': '機器人利用率比較',
+                'completion_rate_y': '完成率 (%)',
+                'wait_time_y': '等待時間 (ticks)',
+                'energy_y': '每訂單能源消耗',
+                'utilization_y': '利用率 (%)'
+            }
+        else:
+            return {
+                'title': 'Controller Performance Comparison',
+                'completion_rate': 'Order Completion Rate',
+                'wait_time': 'Average Wait Time',
+                'energy': 'Energy Efficiency',
+                'utilization': 'Robot Utilization',
+                'completion_rate_y': 'Completion Rate (%)',
+                'wait_time_y': 'Wait Time (ticks)',
+                'energy_y': 'Energy per Order',
+                'utilization_y': 'Utilization (%)'
+            }
+
 # 全域變數用於追蹤中斷
 interrupted = False
 
@@ -562,17 +599,20 @@ class ControllerEvaluator:
             energy_per_orders.append(avg_perf['energy_per_order'])
             robot_utilizations.append(avg_perf['robot_utilization'] * 100)
         
+        # 獲取圖表標籤
+        labels = get_chart_labels(chinese_support)
+        
         # 創建比較圖表
         fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-        fig.suptitle('控制器性能評估比較', fontsize=16, fontweight='bold')
+        fig.suptitle(labels['title'], fontsize=16, fontweight='bold')
         
         # 設置顏色
         colors = plt.cm.Set3(np.linspace(0, 1, len(controllers)))
         
         # 完成率比較
         bars1 = axes[0,0].bar(controllers, completion_rates, color=colors)
-        axes[0,0].set_title('訂單完成率比較', fontweight='bold')
-        axes[0,0].set_ylabel('完成率 (%)')
+        axes[0,0].set_title(labels['completion_rate'], fontweight='bold')
+        axes[0,0].set_ylabel(labels['completion_rate_y'])
         axes[0,0].tick_params(axis='x', rotation=45)
         
         # 添加數值標籤
@@ -583,8 +623,8 @@ class ControllerEvaluator:
         
         # 平均等待時間比較
         bars2 = axes[0,1].bar(controllers, avg_wait_times, color=colors)
-        axes[0,1].set_title('平均等待時間比較', fontweight='bold')
-        axes[0,1].set_ylabel('等待時間 (ticks)')
+        axes[0,1].set_title(labels['wait_time'], fontweight='bold')
+        axes[0,1].set_ylabel(labels['wait_time_y'])
         axes[0,1].tick_params(axis='x', rotation=45)
         
         for bar, wait in zip(bars2, avg_wait_times):
@@ -594,8 +634,8 @@ class ControllerEvaluator:
         
         # 能源效率比較
         bars3 = axes[1,0].bar(controllers, energy_per_orders, color=colors)
-        axes[1,0].set_title('能源效率比較', fontweight='bold')
-        axes[1,0].set_ylabel('每訂單能源消耗')
+        axes[1,0].set_title(labels['energy'], fontweight='bold')
+        axes[1,0].set_ylabel(labels['energy_y'])
         axes[1,0].tick_params(axis='x', rotation=45)
         
         for bar, energy in zip(bars3, energy_per_orders):
@@ -606,8 +646,8 @@ class ControllerEvaluator:
         
         # 機器人利用率比較
         bars4 = axes[1,1].bar(controllers, robot_utilizations, color=colors)
-        axes[1,1].set_title('機器人利用率比較', fontweight='bold')
-        axes[1,1].set_ylabel('利用率 (%)')
+        axes[1,1].set_title(labels['utilization'], fontweight='bold')
+        axes[1,1].set_ylabel(labels['utilization_y'])
         axes[1,1].tick_params(axis='x', rotation=45)
         
         for bar, util in zip(bars4, robot_utilizations):

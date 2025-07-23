@@ -13,9 +13,15 @@ from pathlib import Path
 from datetime import datetime
 import argparse
 
-# 設置中文字體
-plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
-plt.rcParams['axes.unicode_minus'] = False
+# 設置字體
+try:
+    from fix_matplotlib_font import setup_matplotlib_font, get_chart_labels
+    chinese_support = setup_matplotlib_font()
+except:
+    # 如果無法載入修復模組，使用基本設置
+    plt.rcParams['font.sans-serif'] = ['DejaVu Sans']
+    plt.rcParams['axes.unicode_minus'] = False
+    chinese_support = False
 
 class ResultAggregator:
     def __init__(self, evaluation_dirs, output_dir=None):
