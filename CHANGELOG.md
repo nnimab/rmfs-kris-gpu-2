@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
   - The main function was updated with a new `nerl-evolution` analysis type.
 
 ### Changed
+- **Thesis Content:** In `thesis/Chapter_3_Methodology.md`, added a new section "4. Intersection Design and Classification" to define and classify "Standard Intersections" and "Critical Intersections" in English, mirroring the previously added Chinese version.
 - **Thesis Content:** In `thesis/第三章/3.2.1_倉儲模擬環境設計.md`, added a new section "4. 交叉路口設計與分類" to define and classify "Standard Intersections" and "Critical Intersections". This section explains their strategic importance as bottlenecks and provides the rationale for their special handling in the reward function, and includes a suggestion for a new diagram.
 - **Switched to JSON-based Log Parsing:** Refactored `analysis/paper_analyzer.py` to parse structured JSON summaries instead of raw text logs for DQN analysis. This approach proved more robust against malformed log files and encoding issues. The script now attempts to find and parse JSON objects embedded in log lines.
 - **Skipped DQN Analysis:** Decided to omit the detailed DQN training performance analysis (`4.2.1`) from the thesis to focus on the core NERL methodology. The corresponding TODO task was cancelled.

@@ -63,6 +63,17 @@ The driving force of the simulation comes from orders. An **Order** represents a
 4.  An idle robot retrieves a job from the queue and begins its work cycle of picking up, delivering, and returning the pod.
 5.  When all SKUs required for an order have been successfully delivered to the workstation, the order is marked as complete.
 
+### 4. Intersection Design and Classification
+
+In addition to the macroscopic layout, this study provides a clear classification and definition for the microscopic traffic nodes within the warehouse—the intersections. This is crucial for the subsequent controller design.
+
+-   **Standard Intersection**: This is the basic unit that constitutes the main body of the warehouse traffic network, formed by the convergence of two mutually perpendicular one-way aisles. All intersections not otherwise specified fall into this category.
+
+-   **Critical Intersection**: Based on their strategic importance in the warehouse layout, a subset of intersections are designated as "Critical Intersections." These are the traffic nodes directly connected to the entry or exit paths of **Workstations (Picking or Replenishment Stations)**. They are the essential gateways for accessing workstations and constitute the primary traffic **bottlenecks** of the entire system. The efficiency of managing these intersections directly impacts workstation throughput, robot queue lengths, and can potentially trigger **spillback** phenomena that propagate into the storage area. Therefore, in the design of the reinforcement learning reward function (as detailed in Section 3.4.5), these intersections are assigned a higher weight to guide the agent to prioritize learning their effective management.
+
+**【Graphic Suggestion: Figure 3.2.3 - Warehouse Intersection Classification and Critical Intersection Map】**
+To visually demonstrate the geographical distribution of different intersection types, it is recommended to insert a warehouse layout diagram here, consistent in style with Figure 3.2.1. The diagram should use distinct symbols or colors to clearly mark the locations of standard intersections and all critical intersections, especially highlighting their adjacency to picking and replenishment stations.
+
 ## 3.2.2 Traffic Control System Architecture
 
 To enable flexible integration and fair comparison of different traffic control algorithms, this study designs a modular software architecture based on the **Strategy Pattern** and **Factory Pattern**. The core of this architecture is to decouple the "decision-making algorithm" from the "system execution framework," ensuring that whether it is a simple rule-based logic or a complex deep reinforcement learning model, it can operate and be evaluated on the same foundation. The system is primarily composed of the following three components:
