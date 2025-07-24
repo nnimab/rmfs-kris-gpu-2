@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **NERL Evolution Analysis:** Extended `analysis/paper_analyzer.py` to support analysis of NERL training logs.
+  - Added `analyze_nerl_evolution` function to parse fitness scores from each generation's `fitness_scores.json`.
+  - The script now generates evolution curve plots showing max, mean, and min fitness per generation, providing insights into convergence and population diversity.
+  - The main function was updated with a new `nerl-evolution` analysis type.
+
+### Changed
+- **Thesis Content:** In `thesis/第三章/3.2.1_倉儲模擬環境設計.md`, added a new section "4. 交叉路口設計與分類" to define and classify "Standard Intersections" and "Critical Intersections". This section explains their strategic importance as bottlenecks and provides the rationale for their special handling in the reward function, and includes a suggestion for a new diagram.
+- **Switched to JSON-based Log Parsing:** Refactored `analysis/paper_analyzer.py` to parse structured JSON summaries instead of raw text logs for DQN analysis. This approach proved more robust against malformed log files and encoding issues. The script now attempts to find and parse JSON objects embedded in log lines.
+- **Skipped DQN Analysis:** Decided to omit the detailed DQN training performance analysis (`4.2.1`) from the thesis to focus on the core NERL methodology. The corresponding TODO task was cancelled.
+
+### Fixed
+- **Analysis Script Title Bug:** Fixed an issue in `analysis/paper_analyzer.py` where generated plots were overwriting each other due to a static default title. The script now uses the experiment directory name as the default title, ensuring unique filenames for each analysis run.
+
+### In Progress
+- **Chapter 4 Writing:**
+  - Completed the initial draft of `thesis/第四章/4.2.2_NERL演化過程分析.md`.
+  - The section includes a detailed analysis of a baseline NERL experiment and comparative analysis across different configurations (Exploration vs. Exploitation, Step vs. Global Reward, Short vs. Long Evaluation).
+  - All generated evolution plots have been embedded in the document.
+
+## [2025-07-24]
+
+### Added
+- **Advanced NERL Analysis Modes:** Significantly upgraded `analysis/paper_analyzer.py` based on user feedback for deeper insights.
+  - **Elite KPI Evolution Analysis (`nerl-elite-kpi`)**: Added a new mode to track and plot the evolution of key performance indicators (e.g., `completion_rate`, `energy_per_order`) for the *elite individual* of each generation. This provides a clear view of multi-objective optimization over time.
+  - **Final Model Comparison (`nerl-final-comparison`)**: Implemented a second new mode to generate comparative bar charts of the final performance of all NERL experimental groups. This allows for direct comparison of the "champion" models produced by each training configuration.
+  - **Enhanced Plotting**: All new plots use English labels, and the comparison charts feature a sophisticated color and pattern-coding scheme to clearly distinguish between different experimental parameters (reward mode, variant, evaluation ticks).
+- **Full Suite of Analysis Plots:** Generated a complete set of new visualizations for the thesis.
+  - One elite KPI evolution plot for each of the 8 NERL experiment groups.
+  - Six final model comparison bar charts, one for each key performance indicator.
+
+### Changed
+- **Complete Overhaul of Thesis Section 4.2.2:** Rewrote `thesis/第四章/4.2.2_NERL演化過程與最終效能分析.md` from scratch to incorporate the new, more insightful analysis. The new section is structured around the two new analysis modes: elite evolution and final model comparison, providing a much stronger narrative for the results.
+
+### Fixed
+- **Analysis Script Robustness:** Greatly improved the fault tolerance of `analysis/paper_analyzer.py`. The script can now gracefully handle missing or corrupted `fitness_scores.json` files in any generation, skipping the problematic file and logging a warning instead of crashing. This was crucial for successfully analyzing the `B_nerl_step_b3000ticks` experiment.
+
+## [2025-07-23]
+
+### Added
 - **English Translation of Chapter 3:** Created a complete English version of "Chapter 3: Methodology" (`thesis/Chapter_3_Methodology.md`). The translation adheres to the project's academic writing standards, including correct mathematical notation, and maintains structural consistency with other chapters.
 - **English Translation of Chapter 1:** Created an English version of "Chapter 1: Introduction" (`thesis/Chapter_1_Introduction.md`) to facilitate international review and dissemination. The translation adheres to academic standards and follows the project's writing guidelines.
 - **Git Ignore Configuration:** Added comprehensive `.gitignore` file to manage version control exclusions:

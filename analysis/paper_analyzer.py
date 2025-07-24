@@ -536,16 +536,502 @@ class PaperAnalyzer:
         print("="*60)
 
 
+def parse_dqn_log_line(line):
+    """解析單行DQN訓練日誌，返回一個包含指標的字典。"""
+    if "Episode" not in line or "Total Reward" not in line:
+        return None
+    
+    try:
+        parts = line.split(',')
+        data = {}
+        for part in parts:
+            if ':' in part:
+                key_val = part.split(':', 1)
+                key = key_val[0].strip()
+                # 清理鍵名
+                if "Episode #" in key:
+                    key = "episode"
+                elif "Total Reward" in key:
+                    key = "reward"
+                elif "Avg Loss" in key:
+                    key = "loss"
+                elif "Avg Q-Value" in key:
+                    key = "q_value"
+                else:
+                    continue  # 忽略不關心的指標
+                
+                data[key] = float(key_val[1])
+        
+        if all(k in data for k in ['episode', 'reward', 'loss', 'q_value']):
+            return data
+    except (ValueError, IndexError) as e:
+        print(f"Warning: Could not parse line: {line.strip()}. Error: {e}")
+    return None
+
+def parse_dqn_log_line_as_json(line):
+    """
+    試圖將日誌行中的一部分解析為JSON。
+    日誌行格式通常為 'TIMESTAMP - LEVEL - LOGGER - MESSAGE'。
+    MESSAGE 部分可能是一個 JSON 字串。
+    """
+    try:
+        # 尋找第一個 '{'，假設這是 JSON 字串的開始
+        json_start_index = line.find('{')
+        if json_start_index != -1:
+            json_str = line[json_start_index:]
+            data = json.loads(json_str)
+            
+            # 驗證是否為我們需要的 episode summary
+            required_keys = ['end_tick', 'total_reward', 'steps', 'avg_loss', 'avg_q_value']
+            if all(key in data for key in required_keys):
+                return data
+    except (json.JSONDecodeError, TypeError):
+        # 忽略無法解析為JSON的行
+        pass
+    return None
+
+def analyze_dqn_training(log_file, title, output_dir):
+    """分析DQN訓練日誌並生成圖表，日誌中包含JSON格式的摘要。"""
+    print(f"Analyzing DQN training log with JSON parsing: {log_file}")
+    output_dir = Path(output_dir)
+    output_dir.mkdir(exist_ok=True)
+    
+    episodes_data = []
+    try:
+        # 使用 'latin-1' 編碼來避免 UnicodeDecodeError
+        with open(log_file, 'r', encoding='latin-1') as f:
+            for line in f:
+                parsed_data = parse_dqn_log_line_as_json(line)
+                if parsed_data:
+                    episodes_data.append(parsed_data)
+    except FileNotFoundError:
+        print(f"Error: Log file not found at {log_file}")
+        return
+
+    if not episodes_data:
+        print("No valid JSON summary data found in log file.")
+        return
+
+    # 添加 episode 序號
+    for i, episode in enumerate(episodes_data):
+        episode['episode_num'] = i + 1
+
+    df = pd.DataFrame(episodes_data)
+    
+    # 處理 global reward。在 global 模式下，'total_reward' 欄位可能是0，
+    # 真正的獎勵可能記錄在別處或需要從其他指標計算。
+    # 這裡我們先繪製它，如果全為0，會在圖上顯示。
+    # 在論文分析時，需要特別說明 global reward 的評估方式。
+    
+    # 重命名列以匹配繪圖函數的期望
+    df = df.rename(columns={
+        'episode_num': 'episode',
+        'total_reward': 'reward',
+        'avg_loss': 'loss',
+        'avg_q_value': 'q_value'
+    })
+
+    # 確保所有需要的列都存在
+    required_cols = ['episode', 'reward', 'loss', 'q_value']
+    if not all(col in df.columns for col in required_cols):
+        print(f"Missing one of the required columns in the data: {required_cols}")
+        return
+
+    # 清理 'loss' 中的極端值以便於觀察
+    if not df['loss'].empty and df['loss'].quantile(0.99) > 0 :
+        q99 = df['loss'].quantile(0.99)
+        df_plot = df[df['loss'] <= q99].copy()
+    else:
+        df_plot = df.copy()
+
+    # 將 episode 設為索引
+    df_plot.set_index('episode', inplace=True)
+    
+    # 重新命名列以供繪圖函數使用
+    df_plot.rename(columns={
+        'reward': 'Total Reward',
+        'loss': 'Average Loss',
+        'q_value': 'Average Q-Value'
+    }, inplace=True)
+
+
+    plot_dqn_training_from_data(df_plot, title, output_dir)
+
+
+def plot_dqn_training_from_data(df, title, output_dir):
+    """從DataFrame生成DQN訓練圖表。"""
+    fig, axes = plt.subplots(3, 1, figsize=(14, 20), sharex=True)
+    fig.suptitle(f'DQN Training Progression: {title}', fontsize=18, fontweight='bold')
+
+    # 1. 總獎勵 (Total Reward)
+    ax1 = axes[0]
+    ax1.plot(df.index, df['Total Reward'], label='Total Reward per Episode', color='royalblue')
+    reward_moving_avg = df['Total Reward'].rolling(window=50, min_periods=1).mean()
+    ax1.plot(df.index, reward_moving_avg, label='50-Episode Moving Average', color='cyan', linestyle='--')
+    ax1.set_ylabel('Total Reward')
+    ax1.set_title('Episode Reward')
+    ax1.legend()
+    ax1.grid(True, which='both', linestyle='--', linewidth=0.5)
+
+    # 2. 平均損失 (Average Loss)
+    ax2 = axes[1]
+    ax2.plot(df.index, df['Average Loss'], label='Average Loss per Episode', color='orangered', alpha=0.6)
+    loss_moving_avg = df['Average Loss'].rolling(window=50, min_periods=1).mean()
+    ax2.plot(df.index, loss_moving_avg, label='50-Episode Moving Average', color='darkorange', linestyle='--')
+    ax2.set_ylabel('Average Loss')
+    ax2.set_title('Training Loss')
+    # 損失通常跨越多個數量級，使用對數座標軸，但要處理0或負值
+    if (df['Average Loss'] > 0).all():
+        ax2.set_yscale('log')
+    ax2.legend()
+    ax2.grid(True, which='both', linestyle='--', linewidth=0.5)
+
+    # 3. 平均Q值 (Average Q-Value)
+    ax3 = axes[2]
+    ax3.plot(df.index, df['Average Q-Value'], label='Average Q-Value per Episode', color='forestgreen')
+    q_moving_avg = df['Average Q-Value'].rolling(window=50, min_periods=1).mean()
+    ax3.plot(df.index, q_moving_avg, label='50-Episode Moving Average', color='lime', linestyle='--')
+    ax3.set_xlabel('Episode Number')
+    ax3.set_ylabel('Average Q-Value')
+    ax3.set_title('Average Q-Value')
+    ax3.legend()
+    ax3.grid(True, which='both', linestyle='--', linewidth=0.5)
+
+    plt.tight_layout(rect=[0, 0.03, 1, 0.96])
+    
+    file_title = title.replace(" ", "_").replace("(", "").replace(")", "")
+    output_path = output_dir / f'DQN_Training_{file_title}.png'
+    plt.savefig(output_path, dpi=300)
+    plt.close()
+    print(f"DQN training plot saved to {output_path}")
+
+
+def analyze_nerl_evolution(experiment_dir, title, output_dir):
+    """分析單個NERL實驗的演化過程。"""
+    print(f"Analyzing NERL evolution for: {title}")
+    experiment_path = Path(experiment_dir)
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True)
+
+    generation_data = []
+    for gen_dir in sorted(experiment_path.glob('gen???')):
+        fitness_file = gen_dir / 'fitness_scores.json'
+        if fitness_file.exists():
+            try:
+                with open(fitness_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                generation = data.get('generation')
+                all_fitness = data.get('all_fitness')
+                
+                if generation is not None and all_fitness:
+                    generation_data.append({
+                        'generation': generation,
+                        'max_fitness': np.max(all_fitness),
+                        'mean_fitness': np.mean(all_fitness),
+                        'min_fitness': np.min(all_fitness),
+                        'std_fitness': np.std(all_fitness)
+                    })
+            except (json.JSONDecodeError, TypeError) as e:
+                print(f"  Warning: Could not process {fitness_file}. Error: {e}")
+
+    if not generation_data:
+        print("  No valid generation data found.")
+        return
+
+    df = pd.DataFrame(generation_data).sort_values('generation')
+
+    # Plotting the evolution curve
+    plt.figure(figsize=(15, 8))
+    
+    # Plotting the mean fitness
+    plt.plot(df['generation'], df['mean_fitness'], label='Mean Fitness', color='b', marker='o')
+    
+    # Filling the area between max and min fitness to show diversity
+    plt.fill_between(df['generation'], df['min_fitness'], df['max_fitness'], 
+                     alpha=0.2, color='lightblue', label='Fitness Range (Min-Max)')
+    
+    # Plotting the max fitness for each generation
+    plt.plot(df['generation'], df['max_fitness'], label='Max Fitness', color='g', linestyle='--', marker='^', markersize=4)
+
+    plt.title(f'NERL Evolutionary Process: {title}', fontsize=16)
+    plt.xlabel('Generation')
+    plt.ylabel('Fitness Score')
+    plt.legend()
+    plt.grid(True)
+    
+    file_title = title.replace(" ", "_").replace("/", "_").replace("(", "").replace(")", "")
+    plot_save_path = output_path / f'NERL_Evolution_{file_title}.png'
+    plt.savefig(plot_save_path, dpi=300)
+    plt.close()
+    
+    print(f"  Evolution plot saved to {plot_save_path}")
+
+
+def analyze_nerl_elite_evolution(experiment_dir, title, output_dir):
+    """
+    分析單個NERL實驗中，每一代精英個體的KPI演化過程。
+    為每個KPI生成獨立的圖表，並計算線性回歸趨勢。
+    """
+    print(f"Analyzing NERL elite evolution for: {title}")
+    experiment_path = Path(experiment_dir)
+    # 為每個實驗創建一個專屬的子目錄
+    exp_output_dir = Path(output_dir) / f"Elite_KPI_Evolution_{title}"
+    exp_output_dir.mkdir(exist_ok=True)
+
+    elite_kpi_data = []
+    for gen_dir in sorted(experiment_path.glob('gen???')):
+        fitness_file = gen_dir / 'fitness_scores.json'
+        if fitness_file.exists():
+            try:
+                with open(fitness_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                generation = data.get('generation')
+                best_metrics = data.get('best_individual_metrics')
+                best_fitness = data.get('best_fitness')
+                
+                if generation is not None and best_metrics and best_fitness is not None:
+                    record = {'generation': generation, 'best_fitness': best_fitness}
+                    record.update(best_metrics)
+                    elite_kpi_data.append(record)
+                else:
+                    print(f"  Warning: Skipping gen {generation or 'N/A'}. Missing data.")
+            except (json.JSONDecodeError, TypeError) as e:
+                print(f"  Warning: Could not process {fitness_file}. Error: {e}. Skipping.")
+
+    if not elite_kpi_data:
+        print("  No valid elite KPI data found.")
+        return
+
+    df = pd.DataFrame(elite_kpi_data).sort_values('generation')
+    
+    kpis_to_plot = {
+        'best_fitness': 'Best Fitness',
+        'completion_rate': 'Completion Rate',
+        'energy_per_order': 'Energy per Order',
+        'total_stop_go_events': 'Total Stop-Go Events',
+        'signal_switch_count': 'Signal Switch Count',
+        'avg_intersection_congestion': 'Avg. Intersection Congestion'
+    }
+
+    # 定義趨勢的好壞 (True: 越高越好, False: 越低越好)
+    kpi_trend_is_good_if_positive = {
+        'best_fitness': True,
+        'completion_rate': True,
+        'energy_per_order': False,
+        'total_stop_go_events': False,
+        'signal_switch_count': False,
+        'avg_intersection_congestion': False
+    }
+
+    trend_report_lines = [f"Trend Analysis Report for: {title}\n" + "="*50]
+
+    for kpi_key, kpi_title in kpis_to_plot.items():
+        if kpi_key not in df.columns or df[kpi_key].isnull().all():
+            continue
+
+        plt.figure(figsize=(12, 7))
+        ax = plt.gca()
+
+        # 原始數據點
+        ax.plot(df['generation'], df[kpi_key], marker='.', linestyle='-', label=kpi_title, alpha=0.6)
+        
+        # 5代移動平均線
+        moving_avg = df[kpi_key].rolling(window=5, min_periods=1).mean()
+        ax.plot(df['generation'], moving_avg, linestyle='--', label='5-Gen Moving Avg.')
+
+        # 線性回歸趨勢線
+        x = df['generation']
+        y = df[kpi_key]
+        # 忽略NaN值進行回歸計算
+        valid_indices = ~np.isnan(y)
+        if np.any(valid_indices):
+            m, b = np.polyfit(x[valid_indices], y[valid_indices], 1)
+            ax.plot(x, m*x + b, 'r--', label=f'Linear Trend (Slope: {m:.4f})')
+            
+            # 判斷趨勢好壞
+            is_positive_good = kpi_trend_is_good_if_positive[kpi_key]
+            if (m > 0 and is_positive_good) or (m < 0 and not is_positive_good):
+                trend_assessment = "Desirable Trend (正向發展)"
+            elif m == 0:
+                trend_assessment = "Neutral Trend (趨勢持平)"
+            else:
+                trend_assessment = "Undesirable Trend (逆向發展)"
+            
+            trend_report_lines.append(f"\n- {kpi_title}:")
+            trend_report_lines.append(f"  - Slope: {m:.6f}")
+            trend_report_lines.append(f"  - Assessment: {trend_assessment}")
+
+
+        ax.set_title(f'Elite KPI Evolution: {kpi_title}\n({title})', fontsize=16)
+        ax.set_xlabel('Generation')
+        ax.set_ylabel(kpi_title)
+        ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+        ax.legend()
+        
+        plt.tight_layout()
+        plot_save_path = exp_output_dir / f'{kpi_key}.png'
+        plt.savefig(plot_save_path, dpi=300)
+        plt.close()
+
+    # 保存趨勢報告
+    report_path = exp_output_dir / 'trend_report.txt'
+    with open(report_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(trend_report_lines))
+
+    print(f"  Individual KPI plots and trend report saved to {exp_output_dir}")
+
+
+def analyze_nerl_final_comparison(root_log_dir, output_dir):
+    """
+    比較所有NERL實驗組最終一代（冠軍模型）的KPI。
+    """
+    print("Analyzing final generation KPIs for all NERL experiments...")
+    root_path = Path(root_log_dir)
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True)
+
+    final_kpi_data = []
+    # 遍歷所有NERL實驗目錄
+    for exp_dir in sorted(root_path.glob('*nerl*')):
+        if not exp_dir.is_dir():
+            continue
+
+        # 定位到最後一代的目錄
+        gen_dirs = sorted(exp_dir.glob('gen???'))
+        if not gen_dirs:
+            print(f"  Warning: No generation directories found in {exp_dir.name}. Skipping.")
+            continue
+        last_gen_dir = gen_dirs[-1]
+        
+        fitness_file = last_gen_dir / 'fitness_scores.json'
+        if fitness_file.exists():
+            try:
+                with open(fitness_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                best_metrics = data.get('best_individual_metrics')
+                best_fitness = data.get('best_fitness')
+
+                if best_metrics and best_fitness is not None:
+                    record = {'experiment': exp_dir.name}
+                    record.update(best_metrics)
+                    record['best_fitness'] = best_fitness
+                    final_kpi_data.append(record)
+                else:
+                    print(f"  Warning: No final metrics for {exp_dir.name}. Skipping.")
+            except (json.JSONDecodeError, TypeError) as e:
+                print(f"  Warning: Could not process {fitness_file}. Error: {e}")
+
+    if not final_kpi_data:
+        print("No final KPI data found for any experiment.")
+        return
+
+    df = pd.DataFrame(final_kpi_data)
+
+    # --- Plotting ---
+    kpis_to_plot = {
+        'best_fitness': 'Best Fitness',
+        'completion_rate': 'Completion Rate',
+        'energy_per_order': 'Energy per Order',
+        'total_stop_go_events': 'Total Stop-Go Events',
+        'signal_switch_count': 'Signal Switch Count',
+        'avg_intersection_congestion': 'Avg. Intersection Congestion'
+    }
+
+    # 顏色編碼
+    def get_color(name):
+        if 'global' in name: # Global reward -> Green series
+            return 'seagreen' if 'a' in name else 'limegreen'
+        else: # Step reward -> Blue series
+            return 'royalblue' if 'a' in name else 'skyblue'
+    
+    # 樣式編碼 for ticks
+    def get_hatch(name):
+        return '/' if '8000' in name else ''
+
+    for kpi, title in kpis_to_plot.items():
+        if kpi not in df.columns:
+            continue
+        
+        plt.figure(figsize=(18, 10))
+        # 排序以獲得更好的視覺效果
+        df_sorted = df.sort_values(by=kpi, ascending=False if kpi != 'energy_per_order' else True)
+        
+        bars = plt.bar(df_sorted['experiment'], df_sorted[kpi], 
+                       color=[get_color(name) for name in df_sorted['experiment']],
+                       hatch=[get_hatch(name) for name in df_sorted['experiment']],
+                       edgecolor='black')
+
+        plt.title(f'Final Elite Model Comparison: {title}', fontsize=16)
+        plt.ylabel(title)
+        plt.xlabel('Experiment Group')
+        plt.xticks(rotation=45, ha="right")
+        plt.grid(axis='y', linestyle='--', alpha=0.7)
+
+        # 添加圖例說明
+        from matplotlib.patches import Patch
+        legend_elements = [
+            Patch(facecolor='royalblue', edgecolor='black', label='Step Reward (Variant A)'),
+            Patch(facecolor='skyblue', edgecolor='black', label='Step Reward (Variant B)'),
+            Patch(facecolor='seagreen', edgecolor='black', label='Global Reward (Variant A)'),
+            Patch(facecolor='limegreen', edgecolor='black', label='Global Reward (Variant B)'),
+            Patch(facecolor='white', edgecolor='black', hatch='/', label='8000 Ticks Evaluation')
+        ]
+        plt.legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc='upper left')
+
+        plt.tight_layout()
+        plot_save_path = output_path / f'NERL_Final_Comparison_{kpi}.png'
+        plt.savefig(plot_save_path, dpi=300)
+        plt.close()
+        print(f"  Comparison plot for {kpi} saved to {plot_save_path}")
+
 def main():
-    parser = argparse.ArgumentParser(description="RMFS評估數據聚合分析工具")
-    parser.add_argument('root_dir', help='包含評估結果的根目錄')
-    parser.add_argument('--output', '-o', help='輸出目錄（預設：root_dir/aggregated_results）')
+    parser = argparse.ArgumentParser(description="RMFS 數據分析與視覺化工具")
+    parser.add_argument('analysis_type', choices=['eval', 'training', 'nerl-evolution', 'nerl-elite-kpi', 'nerl-final-comparison'], help='要執行的分析類型')
+    parser.add_argument('--root_dir', '-r', help='評估結果的根目錄 (用於 "eval" 分析)')
+    parser.add_argument('--output', '-o', help='輸出目錄')
+    parser.add_argument('--log_file', '-l', help='訓練日誌檔案路徑 (用於 "training" 分析)')
+    parser.add_argument('--title', '-t', default='Training Analysis', help='圖表標題 (用於 "training" 分析)')
+    parser.add_argument('--exp_dir', help='單個實驗目錄 (用於 "nerl-evolution" 分析)')
+    parser.add_argument('--log_dir', help='包含所有NERL實驗日誌的根目錄 (用於 "nerl-final-comparison")')
     
     args = parser.parse_args()
     
-    # 創建分析器並執行分析
-    analyzer = PaperAnalyzer(args.root_dir, args.output)
-    analyzer.run_analysis()
+    if args.analysis_type == 'eval':
+        if not args.root_dir:
+            parser.error('"eval" 分析需要 --root_dir 參數。')
+        output_dir = args.output if args.output else Path(args.root_dir) / "aggregated_results"
+        analyzer = PaperAnalyzer(args.root_dir, output_dir)
+        analyzer.run_analysis()
+    
+    elif args.analysis_type == 'training':
+        if not args.log_file:
+            parser.error('"training" 分析需要 --log_file 參數。')
+        output_dir = args.output if args.output else Path(args.log_file).parent / "analysis_results"
+        # 假設是DQN日誌，未來可以擴充
+        analyze_dqn_training(args.log_file, args.title, output_dir)
+
+    elif args.analysis_type == 'nerl-evolution':
+        if not args.exp_dir:
+            parser.error('"nerl-evolution" 分析需要 --exp_dir 參數。')
+        output_dir = args.output if args.output else Path(args.exp_dir).parent / "analysis_results"
+        title = args.title if args.title else Path(args.exp_dir).name
+        analyze_nerl_evolution(args.exp_dir, title, output_dir)
+
+    elif args.analysis_type == 'nerl-elite-kpi':
+        if not args.exp_dir:
+            parser.error('"nerl-elite-kpi" 分析需要 --exp_dir 參數。')
+        output_dir = args.output if args.output else Path(args.exp_dir).parent / "analysis_results"
+        title = args.title if args.title else Path(args.exp_dir).name
+        analyze_nerl_elite_evolution(args.exp_dir, title, output_dir)
+
+    elif args.analysis_type == 'nerl-final-comparison':
+        if not args.log_dir:
+            parser.error('"nerl-final-comparison" 分析需要 --log_dir 參數。')
+        output_dir = args.output if args.output else Path(args.log_dir) / "analysis_results"
+        analyze_nerl_final_comparison(args.log_dir, output_dir)
 
 
 if __name__ == "__main__":
