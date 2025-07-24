@@ -77,7 +77,7 @@ class DQNController(TrafficController):
             state_size=state_size, 
             action_size=action_size, 
             device=self.device,
-            model_name=model_name,
+            model_name=self.model_name,  # 使用包含 reward_mode 的 model_name
             memory_size=memory_size,
             batch_size=self.batch_size,
             reward_mode=reward_mode
