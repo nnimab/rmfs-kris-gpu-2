@@ -1,0 +1,108 @@
+{
+  "evaluation_config": {
+    "evaluation_ticks": 50000,
+    "num_runs": 3,
+    "timestamp": "2025-07-23_064854"
+  },
+  "results": {
+    "dqn_global_custom": {
+      "individual_runs": [
+        {
+          "controller_name": "dqn_global_custom",
+          "run_id": 0,
+          "execution_time": 1885.9584913253784,
+          "evaluation_ticks": 50000,
+          "completed_orders": 650,
+          "total_orders": 723,
+          "completion_rate": 0.8990318118948825,
+          "avg_wait_time": 6.6166666666506195,
+          "max_wait_time": 13.199999999967986,
+          "total_robots_waiting": 9,
+          "total_energy": 38995.68803999975,
+          "energy_per_order": 59.993366215384235,
+          "robot_utilization": 0.6451866666663587,
+          "avg_intersection_congestion": 1.125,
+          "max_intersection_congestion": 2,
+          "signal_switch_count": 12575,
+          "avg_traffic_rate": 0.025614969752575656,
+          "stop_and_go_events": 17266,
+          "warehouse_final_tick": 7499.999999993497
+        },
+        {
+          "controller_name": "dqn_global_custom",
+          "run_id": 1,
+          "execution_time": 1663.236587047577,
+          "evaluation_ticks": 50000,
+          "completed_orders": 41,
+          "total_orders": 68,
+          "completion_rate": 0.6029411764705882,
+          "avg_wait_time": 3.321428571420516,
+          "max_wait_time": 7.199999999982538,
+          "total_robots_waiting": 7,
+          "total_energy": 3292.616817500001,
+          "energy_per_order": 80.30772725609759,
+          "robot_utilization": -5.159293333338675,
+          "avg_intersection_congestion": 1.4,
+          "max_intersection_congestion": 2,
+          "signal_switch_count": 738,
+          "avg_traffic_rate": 0.0024299200266193707,
+          "stop_and_go_events": 1267,
+          "warehouse_final_tick": 7499.999999993497
+        },
+        {
+          "controller_name": "dqn_global_custom",
+          "run_id": 2,
+          "execution_time": 1674.8387610912323,
+          "evaluation_ticks": 50000,
+          "completed_orders": 32,
+          "total_orders": 32,
+          "completion_rate": 1.0,
+          "avg_wait_time": 7088.939999993514,
+          "max_wait_time": 7230.599999993492,
+          "total_robots_waiting": 10,
+          "total_energy": 3286.242630000012,
+          "energy_per_order": 102.69508218750038,
+          "robot_utilization": 0.3931933333336743,
+          "avg_intersection_congestion": 1.1111111111111112,
+          "max_intersection_congestion": 2,
+          "signal_switch_count": 482,
+          "avg_traffic_rate": 0.0010145955947886828,
+          "stop_and_go_events": 888,
+          "warehouse_final_tick": 7499.999999993497
+        }
+      ],
+      "average_performance": {
+        "execution_time": 1741.3446131547291,
+        "execution_time_std": 102.36709409538904,
+        "completed_orders": 241.0,
+        "completed_orders_std": 289.23001227396855,
+        "completion_rate": 0.8339909961218236,
+        "completion_rate_std": 0.1684966035720184,
+        "avg_wait_time": 2366.2926984105284,
+        "avg_wait_time_std": 3339.4162030720595,
+        "max_wait_time": 2416.999999997814,
+        "max_wait_time_std": 3403.7300833026106,
+        "total_energy": 15191.515829166588,
+        "total_energy_std": 16832.091791967272,
+        "energy_per_order": 80.99872521966074,
+        "energy_per_order_std": 17.439748571965442,
+        "robot_utilization": -1.3736377777795472,
+        "robot_utilization_std": 2.6788388217052543,
+        "avg_intersection_congestion": 1.212037037037037,
+        "avg_intersection_congestion_std": 0.13303077812547515,
+        "max_intersection_congestion": 2.0,
+        "max_intersection_congestion_std": 0.0,
+        "num_runs": 3
+      },
+      "config": {
+        "type": "dqn",
+        "reward_mode": "global",
+        "model_path": "models/training_runs/2025-07-22_105530_dqn_global/dqn_model_global_55000.pth",
+        "metadata": {
+          "controller_type": "dqn",
+          "source": "custom_path"
+        }
+      }
+    }
+  }
+}

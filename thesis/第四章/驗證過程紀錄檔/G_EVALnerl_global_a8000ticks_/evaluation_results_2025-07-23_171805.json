@@ -1,0 +1,108 @@
+{
+  "evaluation_config": {
+    "evaluation_ticks": 50000,
+    "num_runs": 3,
+    "timestamp": "2025-07-23_171805"
+  },
+  "results": {
+    "nerl_global_custom": {
+      "individual_runs": [
+        {
+          "controller_name": "nerl_global_custom",
+          "run_id": 0,
+          "execution_time": 118.88322424888611,
+          "evaluation_ticks": 50000,
+          "completed_orders": 46,
+          "total_orders": 46,
+          "completion_rate": 1.0,
+          "avg_wait_time": 6954.149999993534,
+          "max_wait_time": 7028.849999993523,
+          "total_robots_waiting": 8,
+          "total_energy": 3904.73859245089,
+          "energy_per_order": 84.88562157501934,
+          "robot_utilization": 0.4884800000004235,
+          "avg_intersection_congestion": 1.0,
+          "max_intersection_congestion": 1,
+          "signal_switch_count": 466,
+          "avg_traffic_rate": 0.0017867631744791028,
+          "stop_and_go_events": 1308,
+          "warehouse_final_tick": 7499.999999993497
+        },
+        {
+          "controller_name": "nerl_global_custom",
+          "run_id": 1,
+          "execution_time": 671.8352656364441,
+          "evaluation_ticks": 50000,
+          "completed_orders": 215,
+          "total_orders": 215,
+          "completion_rate": 1.0,
+          "avg_wait_time": 4802.078571421164,
+          "max_wait_time": 4901.399999992652,
+          "total_robots_waiting": 7,
+          "total_energy": 14476.664994808267,
+          "energy_per_order": 67.33332555724775,
+          "robot_utilization": 1.0,
+          "avg_intersection_congestion": 1.1666666666666667,
+          "max_intersection_congestion": 2,
+          "signal_switch_count": 3539,
+          "avg_traffic_rate": 0.007861737466456223,
+          "stop_and_go_events": 5935,
+          "warehouse_final_tick": 7499.999999993497
+        },
+        {
+          "controller_name": "nerl_global_custom",
+          "run_id": 2,
+          "execution_time": 1035.7733659744263,
+          "evaluation_ticks": 50000,
+          "completed_orders": 192,
+          "total_orders": 192,
+          "completion_rate": 1.0,
+          "avg_wait_time": 2911.6285714215096,
+          "max_wait_time": 2987.0999999927553,
+          "total_robots_waiting": 7,
+          "total_energy": 4940.703046449732,
+          "energy_per_order": 25.732828366925688,
+          "robot_utilization": 1.0,
+          "avg_intersection_congestion": 1.0,
+          "max_intersection_congestion": 1,
+          "signal_switch_count": 2901,
+          "avg_traffic_rate": 0.006810246874957968,
+          "stop_and_go_events": 4551,
+          "warehouse_final_tick": 7499.999999993497
+        }
+      ],
+      "average_performance": {
+        "execution_time": 608.8306186199188,
+        "execution_time_std": 376.96071604136506,
+        "completed_orders": 151.0,
+        "completed_orders_std": 74.83760195694853,
+        "completion_rate": 1.0,
+        "completion_rate_std": 0.0,
+        "avg_wait_time": 4889.285714278736,
+        "avg_wait_time_std": 1651.5041001947359,
+        "max_wait_time": 4972.449999992977,
+        "max_wait_time_std": 1650.8021974182907,
+        "total_energy": 7774.03554456963,
+        "total_energy_std": 4758.307594645531,
+        "energy_per_order": 59.31725849973092,
+        "energy_per_order_std": 24.805325159231803,
+        "robot_utilization": 0.8294933333334745,
+        "robot_utilization_std": 0.24113284047482886,
+        "avg_intersection_congestion": 1.0555555555555556,
+        "avg_intersection_congestion_std": 0.07856742013183865,
+        "max_intersection_congestion": 1.3333333333333333,
+        "max_intersection_congestion_std": 0.4714045207910317,
+        "num_runs": 3
+      },
+      "config": {
+        "type": "nerl",
+        "reward_mode": "global",
+        "model_path": "models/training_runs/G_nerl_global_a8000ticks/nerl_global_a8000ticks.pth",
+        "metadata": {
+          "controller_type": "nerl",
+          "source": "custom_path"
+        }
+      }
+    }
+  }
+}

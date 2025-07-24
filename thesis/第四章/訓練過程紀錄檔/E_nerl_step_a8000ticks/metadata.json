@@ -1,0 +1,22 @@
+{
+  "controller_type": "nerl",
+  "reward_mode": "step",
+  "start_time": "2025-07-21 16:23:11",
+  "end_time": "2025-07-22 00:34:13",
+  "config": {
+    "generations": 30,
+    "population_size": 20,
+    "evaluation_ticks": 8000,
+    "elite_size": 2,
+    "mutation_rate": 0.3,
+    "crossover_rate": 0.7,
+    "mutation_strength": 0.2,
+    "variant": "default"
+  },
+  "results": {
+    "best_fitness": 1656758.8999999943,
+    "total_generations": 30,
+    "completed_orders_final_eval": 92,
+    "total_energy_final_eval": 2322.32098974392
+  }
+}

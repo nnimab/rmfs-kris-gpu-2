@@ -1,0 +1,107 @@
+{
+  "evaluation_config": {
+    "evaluation_ticks": 50000,
+    "num_runs": 3,
+    "timestamp": "2025-07-23_064805"
+  },
+  "results": {
+    "time_based": {
+      "individual_runs": [
+        {
+          "controller_name": "time_based",
+          "run_id": 0,
+          "execution_time": 1865.1259546279907,
+          "evaluation_ticks": 50000,
+          "completed_orders": 627,
+          "total_orders": 708,
+          "completion_rate": 0.885593220338983,
+          "avg_wait_time": 6.133333333318458,
+          "max_wait_time": 13.199999999967986,
+          "total_robots_waiting": 9,
+          "total_energy": 28026.594280625042,
+          "energy_per_order": 44.699512409290335,
+          "robot_utilization": 0.27700666666603957,
+          "avg_intersection_congestion": 1.125,
+          "max_intersection_congestion": 2,
+          "signal_switch_count": 9900,
+          "avg_traffic_rate": 0.0238195913472477,
+          "stop_and_go_events": 17783,
+          "warehouse_final_tick": 7499.999999993497
+        },
+        {
+          "controller_name": "time_based",
+          "run_id": 1,
+          "execution_time": 1650.9377443790436,
+          "evaluation_ticks": 50000,
+          "completed_orders": 46,
+          "total_orders": 74,
+          "completion_rate": 0.6216216216216216,
+          "avg_wait_time": 9.683333333309848,
+          "max_wait_time": 26.699999999935244,
+          "total_robots_waiting": 9,
+          "total_energy": 3407.950767502094,
+          "energy_per_order": 74.08588625004552,
+          "robot_utilization": -4.843600000005024,
+          "avg_intersection_congestion": 1.5,
+          "max_intersection_congestion": 3,
+          "signal_switch_count": 9900,
+          "avg_traffic_rate": 0.0016969841549611022,
+          "stop_and_go_events": 1387,
+          "warehouse_final_tick": 7499.999999993497
+        },
+        {
+          "controller_name": "time_based",
+          "run_id": 2,
+          "execution_time": 1662.1165037155151,
+          "evaluation_ticks": 50000,
+          "completed_orders": 31,
+          "total_orders": 31,
+          "completion_rate": 1.0,
+          "avg_wait_time": 7086.949999993514,
+          "max_wait_time": 7197.299999993497,
+          "total_robots_waiting": 6,
+          "total_energy": 3291.2110856249906,
+          "energy_per_order": 106.16809953629001,
+          "robot_utilization": 0.3943466666670086,
+          "avg_intersection_congestion": 1.0,
+          "max_intersection_congestion": 1,
+          "signal_switch_count": 9900,
+          "avg_traffic_rate": 0.0012246150222958363,
+          "stop_and_go_events": 960,
+          "warehouse_final_tick": 7499.999999993497
+        }
+      ],
+      "average_performance": {
+        "execution_time": 1726.0600675741832,
+        "execution_time_std": 98.4402758753498,
+        "completed_orders": 234.66666666666666,
+        "completed_orders_std": 277.48913892659334,
+        "completion_rate": 0.8357382806535348,
+        "completion_rate_std": 0.1584438608558093,
+        "avg_wait_time": 2367.5888888867144,
+        "avg_wait_time_std": 3337.092559239296,
+        "max_wait_time": 2412.3999999978,
+        "max_wait_time_std": 3383.4397260745477,
+        "total_energy": 11575.252044584042,
+        "total_energy_std": 11632.95328119909,
+        "energy_per_order": 74.98449939854196,
+        "energy_per_order_std": 25.10248898735443,
+        "robot_utilization": -1.3907488888906585,
+        "robot_utilization_std": 2.4420043359970838,
+        "avg_intersection_congestion": 1.2083333333333333,
+        "avg_intersection_congestion_std": 0.21245914639969937,
+        "max_intersection_congestion": 2.0,
+        "max_intersection_congestion_std": 0.816496580927726,
+        "num_runs": 3
+      },
+      "config": {
+        "type": "time_based",
+        "reward_mode": null,
+        "model_path": null,
+        "metadata": {
+          "controller_type": "time_based"
+        }
+      }
+    }
+  }
+}

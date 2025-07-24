@@ -1,0 +1,108 @@
+{
+  "evaluation_config": {
+    "evaluation_ticks": 50000,
+    "num_runs": 3,
+    "timestamp": "2025-07-23_173816"
+  },
+  "results": {
+    "nerl_step_custom": {
+      "individual_runs": [
+        {
+          "controller_name": "nerl_step_custom",
+          "run_id": 0,
+          "execution_time": 459.9441294670105,
+          "evaluation_ticks": 50000,
+          "completed_orders": 175,
+          "total_orders": 175,
+          "completion_rate": 1.0,
+          "avg_wait_time": 5489.489999993008,
+          "max_wait_time": 5635.649999993097,
+          "total_robots_waiting": 5,
+          "total_energy": 6362.105021549993,
+          "energy_per_order": 36.35488583742853,
+          "robot_utilization": 1.0,
+          "avg_intersection_congestion": 1.0,
+          "max_intersection_congestion": 1,
+          "signal_switch_count": 2566,
+          "avg_traffic_rate": 0.006423011943292946,
+          "stop_and_go_events": 4534,
+          "warehouse_final_tick": 7499.999999993497
+        },
+        {
+          "controller_name": "nerl_step_custom",
+          "run_id": 1,
+          "execution_time": 676.4544274806976,
+          "evaluation_ticks": 50000,
+          "completed_orders": 82,
+          "total_orders": 82,
+          "completion_rate": 1.0,
+          "avg_wait_time": 4903.181249992653,
+          "max_wait_time": 5310.2999999929,
+          "total_robots_waiting": 8,
+          "total_energy": 3610.4491145217876,
+          "energy_per_order": 44.0298672502657,
+          "robot_utilization": 0.699386666667273,
+          "avg_intersection_congestion": 1.0,
+          "max_intersection_congestion": 1,
+          "signal_switch_count": 1197,
+          "avg_traffic_rate": 0.0027201856135245285,
+          "stop_and_go_events": 2028,
+          "warehouse_final_tick": 7499.999999993497
+        },
+        {
+          "controller_name": "nerl_step_custom",
+          "run_id": 2,
+          "execution_time": 1902.4649860858917,
+          "evaluation_ticks": 50000,
+          "completed_orders": 442,
+          "total_orders": 523,
+          "completion_rate": 0.8451242829827916,
+          "avg_wait_time": 3.845454545445219,
+          "max_wait_time": 13.04999999996835,
+          "total_robots_waiting": 11,
+          "total_energy": 25012.84573755152,
+          "energy_per_order": 56.59014872749213,
+          "robot_utilization": -1.2604333333352935,
+          "avg_intersection_congestion": 1.1,
+          "max_intersection_congestion": 2,
+          "signal_switch_count": 8201,
+          "avg_traffic_rate": 0.016530932359783604,
+          "stop_and_go_events": 11743,
+          "warehouse_final_tick": 7499.999999993497
+        }
+      ],
+      "average_performance": {
+        "execution_time": 1012.9545143445333,
+        "execution_time_std": 635.1592119511687,
+        "completed_orders": 233.0,
+        "completed_orders_std": 152.58440287263963,
+        "completion_rate": 0.9483747609942639,
+        "completion_rate_std": 0.07300911316266454,
+        "avg_wait_time": 3465.5055681770355,
+        "avg_wait_time_std": 2459.4386275886413,
+        "max_wait_time": 3652.9999999953216,
+        "max_wait_time_std": 2577.258253451351,
+        "total_energy": 11661.799957874435,
+        "total_energy_std": 9507.215509494034,
+        "energy_per_order": 45.658300605062124,
+        "energy_per_order_std": 8.340875751412693,
+        "robot_utilization": 0.1463177777773265,
+        "robot_utilization_std": 1.0022653043669947,
+        "avg_intersection_congestion": 1.0333333333333334,
+        "avg_intersection_congestion_std": 0.04714045207910321,
+        "max_intersection_congestion": 1.3333333333333333,
+        "max_intersection_congestion_std": 0.4714045207910317,
+        "num_runs": 3
+      },
+      "config": {
+        "type": "nerl",
+        "reward_mode": "step",
+        "model_path": "models/training_runs/A_nerl_step_a3000ticks/nerl_step_a3000ticks.pth",
+        "metadata": {
+          "controller_type": "nerl",
+          "source": "custom_path"
+        }
+      }
+    }
+  }
+}

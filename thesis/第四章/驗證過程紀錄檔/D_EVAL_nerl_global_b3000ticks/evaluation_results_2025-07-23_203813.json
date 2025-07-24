@@ -1,0 +1,108 @@
+{
+  "evaluation_config": {
+    "evaluation_ticks": 50000,
+    "num_runs": 3,
+    "timestamp": "2025-07-23_203813"
+  },
+  "results": {
+    "nerl_global_custom": {
+      "individual_runs": [
+        {
+          "controller_name": "nerl_global_custom",
+          "run_id": 0,
+          "execution_time": 2006.5583384037018,
+          "evaluation_ticks": 50000,
+          "completed_orders": 652,
+          "total_orders": 719,
+          "completion_rate": 0.9068150208623088,
+          "avg_wait_time": 2.713636363629782,
+          "max_wait_time": 6.599999999983993,
+          "total_robots_waiting": 11,
+          "total_energy": 28717.974259566017,
+          "energy_per_order": 44.045972790745424,
+          "robot_utilization": 0.3270066666660829,
+          "avg_intersection_congestion": 1.2222222222222223,
+          "max_intersection_congestion": 2,
+          "signal_switch_count": 12203,
+          "avg_traffic_rate": 0.024921227931172706,
+          "stop_and_go_events": 16489,
+          "warehouse_final_tick": 7499.999999993497
+        },
+        {
+          "controller_name": "nerl_global_custom",
+          "run_id": 1,
+          "execution_time": 1782.2519426345825,
+          "evaluation_ticks": 50000,
+          "completed_orders": 45,
+          "total_orders": 73,
+          "completion_rate": 0.6164383561643836,
+          "avg_wait_time": 4.934999999988031,
+          "max_wait_time": 18.449999999955253,
+          "total_robots_waiting": 10,
+          "total_energy": 2522.3588549126534,
+          "energy_per_order": 56.05241899805897,
+          "robot_utilization": -5.195893333338706,
+          "avg_intersection_congestion": 1.25,
+          "max_intersection_congestion": 2,
+          "signal_switch_count": 884,
+          "avg_traffic_rate": 0.0018088711373341869,
+          "stop_and_go_events": 1309,
+          "warehouse_final_tick": 7499.999999993497
+        },
+        {
+          "controller_name": "nerl_global_custom",
+          "run_id": 2,
+          "execution_time": 1692.8190305233002,
+          "evaluation_ticks": 50000,
+          "completed_orders": 30,
+          "total_orders": 30,
+          "completion_rate": 1.0,
+          "avg_wait_time": 7091.1999999935115,
+          "max_wait_time": 7219.199999993494,
+          "total_robots_waiting": 6,
+          "total_energy": 1590.2833362325657,
+          "energy_per_order": 53.00944454108552,
+          "robot_utilization": 0.33514000000029054,
+          "avg_intersection_congestion": 1.2,
+          "max_intersection_congestion": 2,
+          "signal_switch_count": 523,
+          "avg_traffic_rate": 0.0011898113947671543,
+          "stop_and_go_events": 877,
+          "warehouse_final_tick": 7499.999999993497
+        }
+      ],
+      "average_performance": {
+        "execution_time": 1827.209770520528,
+        "execution_time_std": 131.96967591959674,
+        "completed_orders": 242.33333333333334,
+        "completed_orders_std": 289.7427978205651,
+        "completion_rate": 0.8410844590088975,
+        "completion_rate_std": 0.16334067410710232,
+        "avg_wait_time": 2366.2828787857097,
+        "avg_wait_time_std": 3341.0210600280134,
+        "max_wait_time": 2414.7499999978113,
+        "max_wait_time_std": 3397.262619371552,
+        "total_energy": 10943.538816903747,
+        "total_energy_std": 12574.182748053177,
+        "energy_per_order": 51.03594544329664,
+        "energy_per_order_std": 5.096385101161319,
+        "robot_utilization": -1.5112488888907774,
+        "robot_utilization_std": 2.6054391887330013,
+        "avg_intersection_congestion": 1.224074074074074,
+        "avg_intersection_congestion_std": 0.020454372254050498,
+        "max_intersection_congestion": 2.0,
+        "max_intersection_congestion_std": 0.0,
+        "num_runs": 3
+      },
+      "config": {
+        "type": "nerl",
+        "reward_mode": "global",
+        "model_path": "models/training_runs/D_nerl_global_b3000ticks/nerl_global_b3000ticks.pth",
+        "metadata": {
+          "controller_type": "nerl",
+          "source": "custom_path"
+        }
+      }
+    }
+  }
+}

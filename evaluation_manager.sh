@@ -344,122 +344,150 @@ run_evaluation() {
     fi
 }
 
-# 單一會話評估（原本的邏輯）
+# 單一會話評估（重構為多次獨立運行）
 run_single_session_evaluation() {
-    # 創建輸出目錄
-    timestamp=$(date +%Y%m%d_%H%M%S)
-    output_dir="result/evaluations/EVAL_${timestamp}"
+    # 基礎時間戳，用於識別同一批次的評估
+    base_timestamp=$(date +%Y%m%d_%H%M%S)
+    base_output_dir="result/evaluations/BATCH_${base_timestamp}"
     
-    # 構建 Python 評估命令
-    eval_command="python evaluate.py"
-    eval_command="$eval_command --eval_ticks $EVAL_TICKS"
-    eval_command="$eval_command --num_runs $NUM_RUNS"
-    eval_command="$eval_command --output_dir $output_dir"
+    # 創建批次目錄
+    mkdir -p "$base_output_dir"
     
-    # 添加選擇的控制器
-    eval_command="$eval_command --controllers"
-    for controller in "${SELECTED_CONTROLLERS[@]}"; do
-        eval_command="$eval_command $controller"
-    done
-    
-    # 如果啟用併行，添加併行參數
-    # 注意：多會話模式下不需要 --parallel，因為每個 screen 已經是獨立進程
-    if [ "$PARALLEL_EVAL" = true ] && [ "$enable_multi_session" = false ]; then
-        eval_command="$eval_command --parallel"
-        echo -e "${YELLOW}⚡ 並行模式已啟用（單一會話內部並行）${NC}"
-    elif [ "$PARALLEL_EVAL" = true ] && [ "$enable_multi_session" = true ]; then
-        echo -e "${YELLOW}⚠️  注意：多會話模式已經是並行執行，--parallel 參數將被忽略${NC}"
-        echo -e "${YELLOW}   每個模型在獨立的 screen 會話中運行${NC}"
-    fi
-    
-    # 顯示即將執行的命令
-    echo -e "${CYAN}執行命令:${NC}"
-    echo -e "${YELLOW}$eval_command${NC}"
+    echo -e "${CYAN}將執行 ${NUM_RUNS} 次獨立評估運行${NC}"
+    echo -e "${CYAN}批次目錄: $base_output_dir${NC}"
     echo ""
     
     # 詢問是否在後台運行
     read -p "是否在後台運行（使用 screen）？[Y/n]: " background_choice
     
-    if [ "$background_choice" != "n" ] && [ "$background_choice" != "N" ]; then
-        # 後台運行
-        screen_name="rmfs_eval_${timestamp}"
+    # 執行多次獨立運行
+    for run_num in $(seq 1 $NUM_RUNS); do
+        # 為每次運行創建唯一的輸出目錄
+        run_timestamp="${base_timestamp}_RUN${run_num}"
+        output_dir="${base_output_dir}/RUN_${run_num}"
         
-        screen -dmS "$screen_name" bash -c "
-            cd $PROJECT_DIR
-            source .venv/bin/activate
-            export PYTHONPATH=$PROJECT_DIR:\$PYTHONPATH
-            export LANG=zh_TW.UTF-8
-            export LC_ALL=zh_TW.UTF-8
-            
-            echo '==============================================='
-            echo 'RMFS 評估任務 (單一會話)'
-            echo \"時間: \$(date)\"
-            echo \"輸出目錄: $output_dir\"
-            echo '==============================================='
-            
-            # 創建輸出目錄
-            mkdir -p $output_dir
-            
-            echo \"執行命令: $eval_command\"
-            echo ''
-            
-            $eval_command
-            
-            echo ''
-            echo '==============================================='
-            echo '評估完成時間: \$(date)'
-            echo '結果保存在: $output_dir'
-            echo '==============================================='
-            echo ''
-            echo '按任意鍵結束...'
-            read
-        "
+        # 構建 Python 評估命令 - 注意這裡將 --num_runs 硬編碼為 1
+        eval_command="python evaluate.py"
+        eval_command="$eval_command --eval_ticks $EVAL_TICKS"
+        eval_command="$eval_command --num_runs 1"  # 每次運行只執行一次
+        eval_command="$eval_command --output_dir $output_dir"
+        eval_command="$eval_command --seed $((42 + run_num - 1))"  # 每次運行使用不同的種子
         
-        echo -e "${GREEN}✅ 評估任務已在後台啟動！${NC}"
-        echo -e "${BLUE}Screen 會話名稱: $screen_name${NC}"
-        echo -e "${BLUE}查看進度: screen -r $screen_name${NC}"
-        echo -e "${BLUE}結果將保存在: $output_dir${NC}"
-    else
-        # 前台運行
-        echo -e "${GREEN}在前台執行評估...${NC}"
+        # 添加選擇的控制器
+        eval_command="$eval_command --controllers"
+        for controller in "${SELECTED_CONTROLLERS[@]}"; do
+            eval_command="$eval_command $controller"
+        done
         
-        # 創建輸出目錄
-        mkdir -p "$output_dir"
+        echo -e "${BLUE}運行 $run_num/$NUM_RUNS:${NC}"
+        echo -e "${YELLOW}命令: $eval_command${NC}"
         
-        # 執行評估
-        $eval_command
-        
-        if [ $? -eq 0 ]; then
-            echo ""
-            echo -e "${GREEN}✅ 評估完成！${NC}"
-            echo -e "${BLUE}結果保存在: $output_dir${NC}"
+        if [ "$background_choice" != "n" ] && [ "$background_choice" != "N" ]; then
+            # 後台運行模式
+            screen_name="rmfs_batch_${base_timestamp}_run${run_num}"
             
-            # 提示生成視覺化
-            echo ""
-            read -p "是否立即生成視覺化圖表？[Y/n]: " viz_choice
-            if [ "$viz_choice" != "n" ] && [ "$viz_choice" != "N" ]; then
-                generate_visualizations "$output_dir"
+            screen -dmS "$screen_name" bash -c "
+                cd $PROJECT_DIR
+                source .venv/bin/activate
+                export PYTHONPATH=$PROJECT_DIR:\$PYTHONPATH
+                export LANG=zh_TW.UTF-8
+                export LC_ALL=zh_TW.UTF-8
+                
+                echo '==============================================='
+                echo 'RMFS 評估任務 - 批次運行 $run_num/$NUM_RUNS'
+                echo \"時間: \$(date)\"
+                echo \"輸出目錄: $output_dir\"
+                echo '==============================================='
+                
+                # 創建輸出目錄
+                mkdir -p $output_dir
+                
+                echo \"執行命令: $eval_command\"
+                echo ''
+                
+                $eval_command
+                
+                echo ''
+                echo '==============================================='
+                echo '運行 $run_num 完成時間: \$(date)'
+                echo '結果保存在: $output_dir'
+                echo '==============================================='
+                
+                # 如果是最後一次運行，等待用戶確認
+                if [ $run_num -eq $NUM_RUNS ]; then
+                    echo ''
+                    echo '所有運行已完成！按任意鍵結束...'
+                    read
+                fi
+            "
+            
+            echo -e "${GREEN}✅ 運行 $run_num 已在後台啟動！${NC}"
+            echo -e "${BLUE}Screen 會話名稱: $screen_name${NC}"
+            
+            # 在運行之間加入短暫延遲，避免同時啟動過多進程
+            if [ $run_num -lt $NUM_RUNS ]; then
+                sleep 2
             fi
         else
-            echo -e "${RED}❌ 評估過程中發生錯誤${NC}"
+            # 前台運行模式
+            echo -e "${GREEN}在前台執行運行 $run_num...${NC}"
+            
+            # 創建輸出目錄
+            mkdir -p "$output_dir"
+            
+            # 執行評估
+            $eval_command
+            
+            if [ $? -eq 0 ]; then
+                echo -e "${GREEN}✅ 運行 $run_num 完成！${NC}"
+            else
+                echo -e "${RED}❌ 運行 $run_num 過程中發生錯誤${NC}"
+            fi
+            
+            echo ""
         fi
+    done
+    
+    echo ""
+    echo -e "${GREEN}✅ 所有評估運行已啟動！${NC}"
+    echo -e "${BLUE}批次結果將保存在: $base_output_dir${NC}"
+    
+    # 如果是前台運行，提示生成聚合分析
+    if [ "$background_choice" = "n" ] || [ "$background_choice" = "N" ]; then
+        echo ""
+        read -p "是否立即執行數據聚合分析？[Y/n]: " aggregate_choice
+        if [ "$aggregate_choice" != "n" ] && [ "$aggregate_choice" != "N" ]; then
+            perform_batch_aggregation "$base_output_dir"
+        fi
+    else
+        echo ""
+        echo -e "${YELLOW}提示：所有運行完成後，可以使用以下命令進行聚合分析：${NC}"
+        echo -e "${CYAN}python analysis/paper_analyzer.py $base_output_dir${NC}"
     fi
 }
 
-# 多會話評估（每個模型獨立會話）
+# 多會話評估（每個模型創建多次獨立運行）
 run_multi_session_evaluation() {
-    echo -e "${BLUE}多會話模式：為每個模型創建獨立的 screen 會話${NC}"
+    echo -e "${BLUE}多會話模式：為每個模型的每次運行創建獨立的 screen 會話${NC}"
     echo ""
     
     # 基礎時間戳
     base_timestamp=$(date +%Y%m%d_%H%M%S)
+    base_output_dir="result/evaluations/BATCH_${base_timestamp}"
+    
+    # 創建批次目錄
+    mkdir -p "$base_output_dir"
+    
+    echo -e "${CYAN}將為 ${#SELECTED_CONTROLLERS[@]} 個控制器執行各 ${NUM_RUNS} 次獨立運行${NC}"
+    echo -e "${CYAN}批次目錄: $base_output_dir${NC}"
+    echo ""
     
     # 為每個控制器創建獨立的評估會話
-    local session_count=0
+    local total_sessions=0
     for i in "${!SELECTED_CONTROLLERS[@]}"; do
         controller="${SELECTED_CONTROLLERS[$i]}"
         
-        # 生成會話名稱
+        # 生成控制器的顯示名稱和目錄名稱
         if [[ "$controller" == *":"* ]]; then
             # AI 模型：提取檔名
             model_type=$(echo "$controller" | cut -d':' -f1)
@@ -467,86 +495,132 @@ run_multi_session_evaluation() {
             model_name=$(basename "$model_path" .pth)
             # 清理檔名中的特殊字符
             clean_name=$(echo "$model_name" | sed 's/[^a-zA-Z0-9_-]/_/g' | cut -c1-20)
-            screen_session="rmfs_${model_type}_${clean_name}_${base_timestamp}"
+            controller_dir="${model_type}_${clean_name}"
             display_name="${model_type}: ${model_name}.pth"
         else
             # 傳統控制器
-            screen_session="rmfs_${controller}_${base_timestamp}"
+            controller_dir="$controller"
             display_name="$controller"
         fi
         
-        # 創建輸出目錄（簡化路徑）
-        if [[ "$controller" == *":"* ]]; then
-            # 從控制器規格提取簡化名稱
-            controller_simple=$(echo "$controller" | cut -d':' -f1)
-            model_basename=$(basename "$(echo "$controller" | cut -d':' -f2-)" .pth)
-            output_dir="result/evaluations/EVAL_${controller_simple}_${model_basename}_${base_timestamp}"
-        else
-            output_dir="result/evaluations/EVAL_${controller}_${base_timestamp}"
-        fi
+        # 為該控制器創建子目錄
+        controller_output_dir="${base_output_dir}/${controller_dir}"
+        mkdir -p "$controller_output_dir"
         
-        # 構建單個控制器的評估命令
-        eval_command="python evaluate.py"
-        eval_command="$eval_command --eval_ticks $EVAL_TICKS"
-        eval_command="$eval_command --num_runs $NUM_RUNS"
-        eval_command="$eval_command --output_dir $output_dir"
-        eval_command="$eval_command --controllers $controller"
+        echo -e "${GREEN}控制器: $display_name${NC}"
         
-        # 創建 screen 會話
-        screen -dmS "$screen_session" bash -c "
-            cd $PROJECT_DIR
-            source .venv/bin/activate
-            export PYTHONPATH=$PROJECT_DIR:\$PYTHONPATH
-            export LANG=zh_TW.UTF-8
-            export LC_ALL=zh_TW.UTF-8
+        # 為每次運行創建獨立會話
+        for run_num in $(seq 1 $NUM_RUNS); do
+            # 為每次運行創建唯一的輸出目錄
+            output_dir="${controller_output_dir}/RUN_${run_num}"
             
-            echo '==============================================='
-            echo 'RMFS 評估任務 - 多會話模式'
-            echo \"控制器: $display_name\"
-            echo \"會話名稱: $screen_session\"
-            echo \"時間: \$(date)\"
-            echo \"輸出目錄: $output_dir\"
-            echo '==============================================='
-            echo ''
+            # 生成會話名稱
+            screen_session="rmfs_${controller_dir}_${base_timestamp}_run${run_num}"
+            # 確保會話名稱不超過系統限制
+            screen_session=$(echo "$screen_session" | cut -c1-40)
             
-            # 創建輸出目錄
-            mkdir -p $output_dir
+            # 構建單個控制器的評估命令 - 硬編碼 --num_runs 為 1
+            eval_command="python evaluate.py"
+            eval_command="$eval_command --eval_ticks $EVAL_TICKS"
+            eval_command="$eval_command --num_runs 1"  # 每次運行只執行一次
+            eval_command="$eval_command --output_dir $output_dir"
+            eval_command="$eval_command --controllers $controller"
+            eval_command="$eval_command --seed $((42 + (i * NUM_RUNS) + run_num - 1))"  # 唯一的種子
             
-            echo \"執行命令: $eval_command\"
-            echo ''
+            # 創建 screen 會話
+            screen -dmS "$screen_session" bash -c "
+                cd $PROJECT_DIR
+                source .venv/bin/activate
+                export PYTHONPATH=$PROJECT_DIR:\$PYTHONPATH
+                export LANG=zh_TW.UTF-8
+                export LC_ALL=zh_TW.UTF-8
+                
+                echo '==============================================='
+                echo 'RMFS 評估任務 - 多會話模式'
+                echo \"控制器: $display_name\"
+                echo \"運行: $run_num/$NUM_RUNS\"
+                echo \"會話名稱: $screen_session\"
+                echo \"時間: \$(date)\"
+                echo \"輸出目錄: $output_dir\"
+                echo '==============================================='
+                echo ''
+                
+                # 創建輸出目錄
+                mkdir -p $output_dir
+                
+                echo \"執行命令: $eval_command\"
+                echo ''
+                
+                $eval_command
+                
+                echo ''
+                echo '==============================================='
+                echo \"評估完成時間: \$(date)\"
+                echo \"控制器: $display_name (運行 $run_num)\"
+                echo \"結果保存在: $output_dir\"
+                echo '==============================================='
+                echo ''
+                echo '按任意鍵結束...'
+                read
+            "
             
-            $eval_command
+            if [ $? -eq 0 ]; then
+                echo -e "  ${CYAN}✓ 運行 $run_num: $screen_session${NC}"
+                ((total_sessions++))
+            else
+                echo -e "  ${RED}✗ 無法啟動運行 $run_num${NC}"
+            fi
             
-            echo ''
-            echo '==============================================='
-            echo \"評估完成時間: \$(date)\"
-            echo \"控制器: $display_name\"
-            echo \"結果保存在: $output_dir\"
-            echo '==============================================='
-            echo ''
-            echo '按任意鍵結束...'
-            read
-        "
+            # 稍微延遲以避免同時啟動太多進程
+            sleep 1
+        done
         
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}✅ 啟動評估: $display_name${NC}"
-            echo -e "${CYAN}   會話: $screen_session${NC}"
-            ((session_count++))
-        else
-            echo -e "${RED}❌ 無法啟動評估: $display_name${NC}"
-        fi
-        
-        # 稍微延遲以避免同時啟動太多進程
-        sleep 1
+        echo ""
     done
     
-    echo ""
-    echo -e "${GREEN}✅ 已啟動 $session_count 個評估會話${NC}"
+    echo -e "${GREEN}✅ 已啟動 $total_sessions 個評估會話${NC}"
+    echo -e "${BLUE}批次結果將保存在: $base_output_dir${NC}"
     echo ""
     echo -e "${BLUE}提示:${NC}"
     echo -e "${BLUE}  • 使用選項 [3] 查看和連接到各個會話${NC}"
     echo -e "${BLUE}  • 使用 'screen -ls' 查看所有會話${NC}"
-    echo -e "${BLUE}  • 每個模型的結果會保存在獨立的目錄${NC}"
+    echo -e "${BLUE}  • 所有運行完成後，使用以下命令進行聚合分析：${NC}"
+    echo -e "${CYAN}    python analysis/paper_analyzer.py $base_output_dir${NC}"
+}
+
+# 執行批次數據聚合分析
+perform_batch_aggregation() {
+    local batch_dir=$1
+    
+    echo -e "${BLUE}執行批次數據聚合分析...${NC}"
+    echo -e "${CYAN}批次目錄: $batch_dir${NC}"
+    
+    # 檢查 paper_analyzer.py 是否存在
+    if [ ! -f "analysis/paper_analyzer.py" ]; then
+        echo -e "${YELLOW}⚠ 未找到 analysis/paper_analyzer.py${NC}"
+        echo -e "${YELLOW}將在下一步創建此檔案${NC}"
+        return 1
+    fi
+    
+    # 執行聚合分析
+    python analysis/paper_analyzer.py "$batch_dir"
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ 數據聚合分析完成！${NC}"
+        echo -e "${BLUE}聚合結果保存在: $batch_dir/aggregated_results/${NC}"
+        
+        # 提示可用的輸出
+        echo ""
+        echo -e "${CYAN}生成的分析結果：${NC}"
+        echo -e "  • 統計摘要: $batch_dir/aggregated_results/statistical_summary.json"
+        echo -e "  • 性能比較圖表: $batch_dir/aggregated_results/performance_comparison.png"
+        echo -e "  • 統計顯著性熱力圖: $batch_dir/aggregated_results/significance_heatmap.png"
+        echo -e "  • 性能表格 (CSV): $batch_dir/aggregated_results/performance_table.csv"
+        echo -e "  • 性能表格 (Markdown): $batch_dir/aggregated_results/performance_table.md"
+        echo -e "  • LaTeX 表格: $batch_dir/aggregated_results/performance_table.tex"
+    else
+        echo -e "${RED}❌ 數據聚合分析失敗${NC}"
+    fi
 }
 
 # 生成視覺化圖表

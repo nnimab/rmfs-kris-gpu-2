@@ -1,0 +1,10 @@
+{
+  "timestamp": "2025-07-23_064956",
+  "evaluation_ticks": 50000,
+  "num_runs": 3,
+  "controllers_evaluated": [
+    "nerl_step_custom"
+  ],
+  "best_completion_rate": 0.8313072801936309,
+  "best_controller": "nerl_step_custom"
+}

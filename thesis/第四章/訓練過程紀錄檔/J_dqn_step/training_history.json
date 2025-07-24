@@ -1,0 +1,11 @@
+{
+  "steps": [],
+  "episodes": [
+    {
+      "end_tick": 1000,
+      "total_reward": 1898427.7499999895,
+      "steps": 8606,
+      "avg_loss": 95714.0302734375,
+      "avg_q_value": 0.07381614434416406,
+      "action_distribution": {
+        

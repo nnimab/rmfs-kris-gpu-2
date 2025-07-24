@@ -4,15 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Changed
-- **Reference List Sorting:** The reference list in `thesis/參考文獻.md` has been reordered alphabetically based on its citation tags (e.g., [a], [b], [c]).
-- **Thesis Structure Refactoring (Chapter 3.4 & 3.6):**
-  - Restructured Chapter 3.4 to "Deep Reinforcement Learning Controller Design," sequentially introducing DQN as the baseline and NERL as the core method.
-  - Consolidated and renumbered the descriptions of State Space, Action Space, and Reward Function to follow the controller introductions (3.4.3 - 3.4.5), creating a more logical flow.
-  - Relocated hyperparameter settings from Chapter 3.5 to a new "DRL Model Hyperparameter Settings" section (3.6.2), placing it logically after the experimental design overview (3.6.1).
-  - Systematically updated all related files, aligning titles, content, mathematical notations, and cross-references with the new structure and academic writing standards.
-
 ### Added
+- **English Translation of Chapter 3:** Created a complete English version of "Chapter 3: Methodology" (`thesis/Chapter_3_Methodology.md`). The translation adheres to the project's academic writing standards, including correct mathematical notation, and maintains structural consistency with other chapters.
+- **English Translation of Chapter 1:** Created an English version of "Chapter 1: Introduction" (`thesis/Chapter_1_Introduction.md`) to facilitate international review and dissemination. The translation adheres to academic standards and follows the project's writing guidelines.
 - **Git Ignore Configuration:** Added comprehensive `.gitignore` file to manage version control exclusions:
   - Excludes Python cache files, virtual environments, and compiled files
   - Ignores machine learning model files (*.pth, *.pkl, *.h5)
@@ -29,6 +23,7 @@ All notable changes to this project will be documented in this file.
   - Distinguished between acceleration (with inertia cost) and deceleration energy consumption
 
 ### Changed
+- **Thesis Formatting:** Added sequential equation numbers (e.g., `(3-1)`) to all mathematical formulas in `thesis/Chapter_3_Methodology.md` to adhere to academic standards.
 - **NERL Performance Optimization:** Implemented batch processing in the `evaluate_individual_parallel` function (`train.py`) to significantly speed up NERL training. The loop now collects all required intersection states, processes them in a single batch on the GPU, and sets all actions at once. This drastically reduces Python-NetLogo I/O overhead and improves GPU utilization.
 - **Unified Network Architecture & Hyperparameters:** To ensure a fair and stable comparison for the thesis experiments, the following major changes were implemented:
   - **Unified Network:** Both `DQN` and `NERL` now use an identical, modern network architecture (`1024 -> 512 (BatchNorm) -> 256 -> action_size`), replacing the previous asymmetrical and oversized models. This ensures comparability.

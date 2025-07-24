@@ -1,0 +1,10 @@
+{
+  "timestamp": "2025-07-23_064805",
+  "evaluation_ticks": 50000,
+  "num_runs": 3,
+  "controllers_evaluated": [
+    "time_based"
+  ],
+  "best_completion_rate": 0.8357382806535348,
+  "best_controller": "time_based"
+}
