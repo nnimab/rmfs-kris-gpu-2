@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Traffic Control System Sequence Diagram</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #fff;
+        color: black;
+        padding: 20px;
+    }
+    .diagram-container {
+        display: flex;
+        justify-content: space-around;
+        position: relative;
+    }
+    .lifeline-container {
+        text-align: center;
+    }
+    .participant {
+        border: 2px solid black;
+        padding: 10px 15px;
+        font-weight: bold;
+    }
+    .lifeline {
+        border-left: 2px dotted black;
+        height: 400px;
+        margin: 0 auto;
+    }
+    .message {
+        position: absolute;
+        width: 20%;
+        text-align: center;
+    }
+    .message .arrow {
+        position: relative;
+        border-bottom: 2px solid black;
+    }
+    .message .arrow::after {
+        content: '▶';
+        position: absolute;
+        right: -10px;
+        top: -10px;
+        font-size: 1.2em;
+    }
+    .message.return {
+        border-bottom-style: dashed;
+    }
+
+    /* Message Positions */
+    .msg1 { top: 50px; left: 13%; }
+    .msg2 { top: 120px; left: 38%; }
+    .msg3 { top: 190px; left: 63%; }
+    .msg4 { top: 260px; left: 38%; }
+    .msg5 { top: 330px; left: 13%; }
+
+    .note {
+        position: absolute;
+        border: 1px solid #555;
+        background-color: #f9f9f9;
+        padding: 8px;
+        font-size: 0.8em;
+        width: 200px;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        top: 290px;
+        left: 65%;
+    }
+    .note::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -10px;
+        border-width: 10px 10px 10px 0;
+        border-style: solid;
+        border-color: transparent #555 transparent transparent;
+    }
+
+</style>
+</head>
+<body>
+
+    <div class="diagram-container">
+        <!-- Participants -->
+        <div class="lifeline-container">
+            <div class="participant">Simulation Loop</div>
+            <div class="lifeline"></div>
+        </div>
+        <div class="lifeline-container">
+            <div class="participant">IntersectionManager</div>
+            <div class="lifeline"></div>
+        </div>
+        <div class="lifeline-container">
+            <div class="participant">TrafficController</div>
+            <div class="lifeline"></div>
+        </div>
+        <div class="lifeline-container">
+            <div class="participant">Intersection</div>
+            <div class="lifeline"></div>
+        </div>
+
+        <!-- Messages -->
+        <div class="message msg1">
+            <div class="label">1. update_traffic_using_controller(tick)</div>
+            <div class="arrow"></div>
+        </div>
+        <div class="message msg2">
+            <div class="label">2. get_direction(...)</div>
+            <div class="arrow"></div>
+        </div>
+        <div class="message msg3">
+            <div class="label">3. updateAllowedDirection(...)</div>
+            <div class="arrow"></div>
+        </div>
+        <div class="message msg4">
+            <div class="label">4. [Optional] train(...)</div>
+            <div class="arrow return"></div>
+        </div>
+
+        <!-- Note -->
+        <div class="note">
+            <b>For RL Controllers (DQN/NERL):</b><br/>
+            Provide (State, Action, Reward, NextState) for model learning and optimization.
+        </div>
+    </div>
+
+</body>
+</html> 

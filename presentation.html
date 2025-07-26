@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>口試簡報 - 神經演化強化學習於倉儲機器人交通控管策略</title>
+    <style>
+        :root {
+            --slide-width: 11in;
+            --slide-height: 6.18in; /* 16:9 aspect ratio */
+            --main-font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            --heading-font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            --text-color: #333;
+            --heading-color: #111;
+            --bg-color: #f8f9fa;
+            --slide-bg: #ffffff;
+            --border-color: #dee2e6;
+        }
+
+        body {
+            font-family: var(--main-font);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 2rem 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .slide {
+            background: var(--slide-bg);
+            width: var(--slide-width);
+            height: var(--slide-height);
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem 4rem;
+            box-sizing: border-box;
+            position: relative;
+            page-break-after: always;
+        }
+        
+        .slide:last-of-type {
+            page-break-after: avoid;
+        }
+        
+        .slide-number {
+            position: absolute;
+            bottom: 20px;
+            right: 30px;
+            font-size: 1rem;
+            color: #aaa;
+        }
+        
+        .title-slide {
+            justify-content: center;
+            text-align: center;
+        }
+
+        h1, h2, h3 {
+            font-family: var(--heading-font);
+            color: var(--heading-color);
+            margin-top: 0;
+        }
+
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        h2 {
+            font-size: 2.2rem;
+            width: 100%;
+            text-align: left;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        h3 {
+            font-size: 1.6rem;
+            margin-bottom: 1rem;
+        }
+
+        p, li {
+            font-size: 1.4rem;
+            line-height: 1.6;
+            max-width: 100%;
+        }
+        
+        ul {
+            text-align: left;
+            width: 100%;
+            padding-left: 2rem;
+        }
+        
+        li {
+            margin-bottom: 0.75rem;
+        }
+        
+        strong {
+            color: #0056b3;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            width: 100%;
+            align-items: center;
+        }
+        
+        .full-width {
+            width: 100%;
+        }
+
+        .image-placeholder {
+            width: 100%;
+            height: 250px;
+            background-color: #e9ecef;
+            border: 1px dashed #ced4da;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: #6c757d;
+            font-size: 1.2rem;
+            border-radius: 4px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 1rem;
+        }
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 0.6rem;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f1f3f5;
+        }
+        
+        .centered-content {
+             width: 100%;
+             height: 100%;
+             display: flex;
+             flex-direction: column;
+             justify-content: center;
+             align-items: center;
+             text-align: center;
+        }
+
+        @media print {
+            @page {
+                size: landscape;
+                margin: 0;
+            }
+
+            body {
+                background-color: var(--slide-bg);
+                padding: 0;
+            }
+
+            .slide {
+                width: 100vw;
+                height: 100vh;
+                border: none;
+                box-shadow: none;
+                margin: 0;
+                padding: 4vw;
+                page-break-before: always;
+            }
+            
+            .slide:first-of-type {
+                page-break-before: avoid;
+            }
+            
+            .slide-number {
+                bottom: 3vh;
+                right: 4vw;
+            }
+
+            h1 { font-size: 5.5vh; }
+            h2 { font-size: 4.5vh; }
+            p, li { font-size: 3vh; line-height: 1.5; }
+            table { font-size: 2vh; }
+        }
+    </style>
+</head>
+<body>
+
+    <section class="slide title-slide">
+        <div class="centered-content">
+            <h1>神經演化強化學習於倉儲機器人交通控管策略</h1>
+            <p style="font-size: 1.8rem; margin-top: 2rem;">報告者: (您的姓名)</p>
+            <p style="font-size: 1.5rem;">指導教授: (指導教授姓名)</p>
+            <p style="font-size: 1.5rem;">日期: 2025年6月</p>
+        </div>
+        <div class="slide-number">1</div>
+    </section>
+    
+    <section class="slide">
+        <h2>議程 (Outline)</h2>
+        <ul>
+            <li><h3>研究背景與動機 (為何這問題重要？)</h3></li>
+            <li><h3>研究目標與方法論 (我們打算如何解決？)</h3></li>
+            <li><h3>實驗設計與結果分析 (我們發現了什麼？)</h3></li>
+            <li><h3>結論與未來展望 (這項研究的貢獻與未來方向？)</h3></li>
+        </ul>
+        <div class="slide-number">2</div>
+    </section>
+
+    <section class="slide">
+        <h2>背景(1) - 電商崛起與自動化倉儲的挑戰</h2>
+        <div class="content-grid">
+            <div>
+                <ul>
+                    <li><strong>趨勢</strong>: 全球電子商務爆炸性成長，驅動零售業結構轉型。</li>
+                    <li><strong>新常態</strong>: 消費者訂單呈現「<strong>小批量、高頻次、高時效性</strong>」的特點。</li>
+                    <li><strong>解決方案</strong>: 企業大規模導入<strong>自動化移動揀選系統 (RMFS)</strong>。</li>
+                    <li style="list-style-type: none; margin-left: 1rem;">↳ 數百台自主移動機器人 (AMR) 協同作業，提升數倍揀貨效率。</li>
+                </ul>
+            </div>
+            <div class="image-placeholder">
+                <p>建議放置：<br/>全球電商產值趨勢圖 或 RMFS 運作示意圖</p>
+            </div>
+        </div>
+        <div class="slide-number">3</div>
+    </section>
+
+    <section class="slide">
+        <h2>背景(2) - 新瓶頸：交通壅塞與能源消耗</h2>
+        <div class="content-grid">
+             <div class="image-placeholder">
+                <p>建議放置：<br/>簡化的倉庫路網圖，並在交叉路口標示壅塞情況</p>
+            </div>
+            <div>
+                <ul>
+                    <li>高密度的機器人運行，在<strong>交叉路口</strong>產生新的營運瓶頸：</li>
+                    <li><strong>交通壅塞</strong>: 機器人頻繁等待、排隊，導致延遲。</li>
+                    <li><strong>效率損失</strong>: 壅塞直接限制系統的訂單處理能力 (Throughput)。</li>
+                    <li><strong>能源浪費</strong>: 機器人頻繁的<strong>加減速</strong>行為，顯著增加能源消耗。</li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">4</div>
+    </section>
+
+    <section class="slide">
+        <h2>背景(3) - 迫在眉睫的永續壓力</h2>
+         <div class="content-grid">
+            <div>
+                <ul>
+                    <li><strong>全球趨勢</strong>: <strong>永續發展</strong>與<strong>碳中和</strong>已成全球性的政策與商業壓力。</li>
+                     <li style="list-style-type: none; margin-left: 1rem;">↳ 運輸與倉儲業碳排放約佔全球 24%。</li>
+                    <li><strong>政策壓力</strong>: 歐盟<strong>「碳邊境調整機制 (CBAM)」</strong>已啟動。</li>
+                     <li style="list-style-type: none; margin-left: 1rem;">↳ 2026年生效，高碳足跡產品將被課徵<strong>額外成本</strong>。</li>
+                    <li><strong>小結</strong>: 優化AMR能效，已從「加分項」轉變為攸關競爭力的「<strong>必考題</strong>」。</li>
+                </ul>
+            </div>
+            <div class="image-placeholder">
+                <p>建議放置：<br/>左: 碳排放來源圓餅圖<br/>右: CBAM 供應鏈壓力示意圖</p>
+            </div>
+        </div>
+        <div class="slide-number">5</div>
+    </section>
+    
+    <section class="slide">
+        <h2>文獻回顧與研究缺口 (Research Gap)</h2>
+        <div class="content-grid">
+            <div>
+                <h3>現有研究方向:</h3>
+                <ul>
+                    <li><strong>訂單層面</strong>: 透過智慧化訂單排程最小化成本 (Mousavi et al., 2024)。</li>
+                    <li><strong>能耗層面</strong>: 透過調整機器人速度降低能耗 (Song et al., 2025)。</li>
+                </ul>
+                <h3 style="margin-top: 2rem;">本研究發現的缺口:</h3>
+                 <ul>
+                    <li>缺乏專注於「<strong>路口層級</strong>」的精細化交通控制。</li>
+                    <li>「<strong>營運效率</strong>」與「<strong>能源消耗</strong>」的權衡仍有探索空間。</li>
+                </ul>
+            </div>
+            <div class="image-placeholder">
+                <p>建議放置：<br/>研究定位 2x2 矩陣圖<br/>X軸: 控制粒度 (宏觀/微觀)<br/>Y軸: 優化目標 (單一/雙重)</p>
+            </div>
+        </div>
+        <div class="slide-number">6</div>
+    </section>
+
+    <section class="slide">
+        <h2>本研究的切入點與貢獻</h2>
+        <div class="full-width">
+            <h3 style="text-align: center;">核心研究問題:</h3>
+            <p style="text-align: center; font-style: italic;">如何設計一個路口控制器，能在維持高訂單處理效率的基礎上，最大化地降低機器人的能源消耗？</p>
+            
+            <div class="content-grid" style="margin-top: 2rem;">
+                 <div class="image-placeholder">
+                    <p>建議放置：<br/>NERL 概念圖 (輸入->模型->輸出)</p>
+                </div>
+                <div>
+                    <h3>本研究提出的方法:</h3>
+                    <p>基於 <strong>神經演化強化學習 (NERL)</strong> 的新型路口控制器。</p>
+                    <h3>方法優勢:</h3>
+                    <ul>
+                        <li>結合<strong>演化演算法</strong>進行廣域搜索。</li>
+                        <li>結合<strong>深度強化學習</strong>進行即時決策。</li>
+                    </ul>
+                     <h3>最終目標:</h3>
+                    <p>打造一個 <strong>「自適應、能耗感知」</strong> 的通行權分配機制。</p>
+                </div>
+            </div>
+        </div>
+        <div class="slide-number">7</div>
+    </section>
+    
+    <section class="slide">
+        <h2>研究目標</h2>
+        <div class="full-width">
+            <p>基於前述研究缺口，本研究旨在達成以下四大目標：</p>
+            <div class="content-grid" style="gap: 1rem; text-align: center; margin-top: 2rem;">
+                <div>
+                    <div class="image-placeholder" style="height: 120px;"><p>平台圖示</p></div>
+                    <h3>1. 建構高擬真度平台</h3>
+                    <p style="font-size: 1.2rem;">建立能反映真實挑戰的RMFS模擬平台。</p>
+                </div>
+                <div>
+                    <div class="image-placeholder" style="height: 120px;"><p>決策樹圖示</p></div>
+                    <h3>2. 設計多種控制策略</h3>
+                    <p style="font-size: 1.2rem;">實現基線 (時間/佇列) 與 DRL (DQN/NERL) 控制器。</p>
+                </div>
+                 <div>
+                    <div class="image-placeholder" style="height: 120px;"><p>矩陣圖示</p></div>
+                    <h3>3. 執行嚴謹對照實驗</h3>
+                     <p style="font-size: 1.2rem;">設計 12 個實驗組的對照矩陣以系統性比較。</p>
+                </div>
+                 <div>
+                    <div class="image-placeholder" style="height: 120px;"><p>分析圖示</p></div>
+                    <h3>4. 進行量化統計分析</h3>
+                     <p style="font-size: 1.2rem;">採用統計方法驗證 NERL 方法的效能顯著性。</p>
+                </div>
+            </div>
+        </div>
+        <div class="slide-number">8</div>
+    </section>
+    
+    <section class="slide">
+        <h2>系統概覽 - 倉儲模擬環境</h2>
+        <div class="content-grid">
+            <div class="image-placeholder">
+                <p>核心圖表：<br/>論文 圖 3.2.1<br/>倉儲佈局示意圖<br/>(標示儲存區、工作站、單向道)</p>
+            </div>
+            <div>
+                <h3>物理佈局:</h3>
+                <ul>
+                    <li><strong>中央儲存區</strong>: 採用嚴格的<strong>單向通道</strong>設計，從物理上減少衝突。</li>
+                    <li><strong>週邊功能區</strong>: 兩側設有<strong>揀貨站</strong>與<strong>補貨站</strong>。</li>
+                </ul>
+                <h3>核心動態:</h3>
+                 <ul>
+                    <li>由<strong>訂單 (Order)</strong> 驅動，分解為<strong>任務 (Job)</strong>。</li>
+                    <li><strong>機器人 (Robot)</strong> 遵循狀態機 (閒置、取貨、送貨) 完成任務。</li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">9</div>
+    </section>
+    
+    <section class="slide">
+        <h2>系統概覽 - 關鍵路口定義</h2>
+        <div class="content-grid">
+            <div>
+                 <h3>路口分類:</h3>
+                <ul>
+                    <li><strong>標準路口</strong>: 構成倉儲路網的主體。</li>
+                    <li><strong>關鍵路口 (Critical Intersection)</strong>:
+                        <ul style="padding-left: 1.5rem;">
+                            <li><strong>定義</strong>: 連接工作站的入口或出口，是進出站的<strong>必經之路</strong>。</li>
+                            <li><strong>重要性</strong>: 系統最主要的<strong>交通瓶頸 (Bottleneck)</strong>，易引發回堵。</li>
+                             <li><strong>策略</strong>: 在 DRL 模型中賦予更高的<strong>學習權重</strong>。</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+             <div class="image-placeholder">
+                <p>核心圖表：<br/>倉儲佈局圖<br/>(高亮標示出所有「關鍵路口」)</p>
+            </div>
+        </div>
+        <div class="slide-number">10</div>
+    </section>
+    
+    <section class="slide">
+        <h2>系統概覽 - 控制系統架構</h2>
+        <div class="content-grid">
+            <div class="image-placeholder">
+                <p>核心圖表：<br/>論文 圖 3.2.1<br/>交通控制系統運作序列圖<br/>(UML Sequence Diagram)</p>
+            </div>
+            <div>
+                <h3>核心設計模式:</h3>
+                <ul>
+                    <li><strong>策略模式 (Strategy Pattern)</strong>: 將「決策演算法」與「執行框架」分離，實現統一介面。</li>
+                    <li><strong>工廠模式 (Factory Pattern)</strong>: 透過設定檔輕易切換控制器。</li>
+                </ul>
+                <h3>運作流程:</h3>
+                 <ol style="font-size: 1.2rem; line-height: 1.5;">
+                    <li>模擬器請求決策</li>
+                    <li>`IntersectionManager` 調用 `Controller`</li>
+                    <li>`Controller` 回傳決策</li>
+                    <li>`Manager` 執行決策並觸發學習</li>
+                </ol>
+            </div>
+        </div>
+        <div class="slide-number">11</div>
+    </section>
+
+    <section class="slide">
+        <h2>傳統基線(1): 時間基礎控制器</h2>
+        <div class="content-grid">
+            <div class="image-placeholder">
+                <p>建議放置：<br/>時間軸圖<br/>(清晰標示水平綠燈70ticks, 垂直綠燈30ticks)</p>
+            </div>
+            <div>
+                <h3>Time-Based Controller</h3>
+                <ul>
+                    <li><strong>邏輯</strong>: 模擬傳統交通號誌，依賴一個預設的、固定的時間週期 (70+30 ticks) 來循環切換水平與垂直方向的路權。</li>
+                    <li><strong>優點</strong>: 極致的簡單、可預測性高。</li>
+                    <li><strong>缺點</strong>: 完全不考慮即時交通狀況，無法適應流量波動，容易造成不必要的等待或時間浪費。</li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">12</div>
+    </section>
+
+    <section class="slide">
+        <h2>傳統基線(2): 佇列基礎控制器</h2>
+        <div class="content-grid">
+             <div>
+                <h3>Queue-Based Controller</h3>
+                <ul>
+                    <li><strong>邏輯</strong>: 一種動態反應式策略，持續監測路口兩個方向的等待佇列，將路權優先分配給需求更迫切的方向。</li>
+                    <li><strong>計分公式</strong>: <br><strong>Score = Σ (等待機器人數量 × 任務緊急度)</strong></li>
+                    <li><strong>特點</strong>: 能靈活適應即時的交通流量變化，比時間基礎控制器更智慧，是個強力的啟發式方法。</li>
+                </ul>
+            </div>
+            <div class="image-placeholder">
+                 <p>建議放置：<br/>天平示意圖<br/>(路口兩側的佇列加權總分決定天平傾斜方向)</p>
+            </div>
+        </div>
+        <div class="slide-number">13</div>
+    </section>
+    
+    <section class="slide">
+        <h2>DRL 控制器設計: 狀態與動作</h2>
+        <div class="content-grid">
+            <div>
+                <h3>狀態空間 (State - 觀察)</h3>
+                <p>一個 <strong>17 維</strong>向量，包含路口<strong>局部</strong>、<strong>鄰居</strong>和<strong>全局</strong>的交通資訊 (佇列、等待時間等)。</p>
+                
+                <h3 style="margin-top: 1.5rem;">動作空間 (Action - 決策)</h3>
+                <p>一個 <strong>6 維</strong>離散動作集，包括<strong>切換相位</strong>和<strong>動態調整速度</strong>。</p>
+                
+                 <h3 style="margin-top: 1.5rem;">獎勵函數 (Reward - 引導)</h3>
+                <ul>
+                    <li><strong>步階獎勵</strong>: 高頻率的局部回饋 (指導即時反應)。</li>
+                    <li><strong>全域獎勵</strong>: 低頻率的宏觀回饋 (指導長期策略)。</li>
+                </ul>
+            </div>
+            <div class="image-placeholder">
+                <p>核心圖表：<br/>DRL 經典互動環路圖<br/>(Agent ↔ Environment)</p>
+            </div>
+        </div>
+        <div class="slide-number">14</div>
+    </section>
+    
+    <section class="slide">
+        <h2>DRL 控制器設計: DQN vs. NERL</h2>
+         <div class="content-grid">
+            <div>
+                <h3>深度Q網路 (DQN) - DRL基線</h3>
+                <ul>
+                    <li><strong>定位</strong>: 作為先進的 DRL 比較基準。</li>
+                    <li><strong>目標</strong>: 學習「價值函數」$Q(s, a)$，預測動作的好壞。</li>
+                    <li><strong>學習方式</strong>: 透過**梯度下降**更新網路。</li>
+                </ul>
+            </div>
+            <div>
+                <h3>神經演化 (NERL) - 核心貢獻</h3>
+                <ul>
+                     <li><strong>定位</strong>: 本研究的核心貢獻方法。</li>
+                    <li><strong>目標</strong>: 直接在策略的「參數空間」中搜索。</li>
+                    <li><strong>學習方式</strong>: 透過**演化演算法**「繁殖」出更優策略。</li>
+                </ul>
+            </div>
+        </div>
+        <p style="text-align: center; margin-top: 2rem; background-color: #e9ecef; padding: 1rem; border-radius: 5px;"><strong>公平性設計</strong>: 為確保比較基礎一致，所有 DQN 與 NERL 模型均採用了層數與節點數完全相同的神經網路架構。</p>
+        <div class="slide-number">15</div>
+    </section>
+
+    <section class="slide">
+        <h2>實驗設計概覽</h2>
+        <div class="full-width">
+            <div class="image-placeholder">
+                <p>建議放置：<br/>實驗流程漏斗圖</p>
+            </div>
+             <div class="content-grid" style="margin-top: 2rem;">
+                 <div>
+                    <h3>訓練階段</h3>
+                    <ul>
+                        <li>訓練了 <strong>10 個</strong> 深度強化學習模型：</li>
+                        <li><strong>8 個 NERL 模型</strong>: 涵蓋 2x2x2 的超參數組合。</li>
+                        <li><strong>2 個 DQN 模型</strong>: 作為 DRL 比較基線。</li>
+                    </ul>
+                </div>
+                 <div>
+                    <h3>最終驗證階段</h3>
+                     <ul>
+                        <li>將訓練好的 <strong>10 個 DRL 模型</strong>...</li>
+                        <li>...與 <strong>2 個傳統基線</strong> (`TimeBased`, `QueueBased`) 進行比較。</li>
+                        <li>總共 <strong>12 個控制器</strong> 進行最終效能對決。</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="slide-number">16</div>
+    </section>
+
+    <section class="slide">
+        <h2>實驗結果(1) - 確認模型有效學習</h2>
+        <div class="full-width">
+            <p>以 A 組 (NERL-Step, 高探索) 為例，分析其 30 個世代的演化趨勢：</p>
+            <div class="image-placeholder">
+                <p>核心圖表：論文 圖 4.2.1<br/>(a) 適應度, (b) 完成率, (c) 單均能耗 三圖並排<br/>並在圖下標示趨勢線斜率</p>
+            </div>
+            <ul style="margin-top: 1.5rem;">
+                <li><strong>適應度 (Fitness)</strong>: 斜率 <strong>+1594</strong>，顯著上升 (正向發展)。</li>
+                <li><strong>訂單完成率 (Completion Rate)</strong>: 斜率 <strong>+0.0008</strong>，趨勢上升 (正向發展)。</li>
+                <li><strong>單均能耗 (Energy per Order)</strong>: 斜率 <strong>-2.69</strong>，顯著下降 (正向發展)。</li>
+            </ul>
+             <p><strong>結論</strong>: NERL 框架能夠有效學習，並同時優化「產出」與「效率」。</p>
+        </div>
+        <div class="slide-number">17</div>
+    </section>
+
+    <section class="slide">
+        <h2>訓練洞見(1): 步階獎勵是更有效的指南針</h2>
+        <div class="content-grid">
+            <div class="image-placeholder">
+                <p>建議放置：<br/>Step Reward vs Global Reward<br/>在「訂單完成率」上的演化趨勢對比圖</p>
+            </div>
+            <div>
+                <h3>Step vs. Global Reward</h3>
+                <ul>
+                    <li><strong>步階獎勵 (Step)</strong>:
+                        <ul>
+                            <li>提供密集、即時的獎勵信號。</li>
+                            <li>成功引導模型學習提升系統產出的策略 (完成率趨勢為正)。</li>
+                        </ul>
+                    </li>
+                    <li><strong>全域獎勵 (Global)</strong>:
+                        <ul>
+                            <li>信號稀疏、延遲，導致「信用分配」困難。</li>
+                            <li>模型難以建立微觀決策與宏觀結果的聯繫，學習信號充滿噪音 (完成率趨勢為負)。</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">18</div>
+    </section>
+
+    <section class="slide">
+        <h2>訓練洞見(2): 探索不足是學習的陷阱</h2>
+        <div class="content-grid">
+            <div>
+                <h3>High vs. Low Exploration</h3>
+                <ul>
+                    <li><strong>高探索性 (變體A)</strong>:
+                        <ul>
+                            <li>雖然初期學習波動大，但允許在更廣闊的策略空間搜索。</li>
+                            <li>是最終能跳出局部最優、發現高效策略的必要前提。</li>
+                        </ul>
+                    </li>
+                    <li><strong>低探索性 (變體B)</strong>:
+                        <ul>
+                            <li>收斂看似穩定，但容易陷入次優策略。</li>
+                            <li>可能學會了「為避免風險而導致交通停滯」的錯誤策略，損害總體目標。</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+            <div class="image-placeholder">
+                <p>建議放置：<br/>高探索 vs 低探索<br/>在「訂單完成率」或「適應度」上的演化趨勢對比圖</p>
+            </div>
+        </div>
+        <div class="slide-number">19</div>
+    </section>
+    
+    <section class="slide">
+        <h2>訓練洞見(3): 評估時長並非越長越好</h2>
+        <div class="content-grid">
+             <div class="image-placeholder">
+                <p>建議放置：<br/>3000 ticks vs 8000 ticks<br/>在「單均能耗」上的演化趨勢對比圖</p>
+            </div>
+            <div>
+                <h3>Short vs. Long Evaluation</h3>
+                 <ul>
+                    <li><strong>問題</strong>: 當「步階獎勵」遇上「過長的評估窗口」。</li>
+                    <li><strong>獎勵信號稀釋</strong>:
+                        <ul>
+                            <li>在長達 8000 ticks 的評估中，任何有益的微觀動作所產生的即時獎勵，在漫長的總時長中被稀釋。</li>
+                        </ul>
+                    </li>
+                     <li><strong>策略漂移</strong>:
+                        <ul>
+                             <li>模型可能學到「短視」策略，為逃避眼前的微小懲罰（如切換相位），而犧牲了長期的系統效率，導致學習過程惡化。</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">20</div>
+    </section>
+
+    <section class="slide">
+        <h2>實驗結果 - 綜合效能最終驗證</h2>
+        <div class="full-width">
+            <h3 style="text-align: center;">核心問題: 哪個策略的泛化能力與魯棒性最強？</h3>
+            <p style="text-align: center;">所有 12 個控制器在統一的 `50,000 ticks` 標準場景下進行最終對決。</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>實驗組</th>
+                        <th>訂單完成率</th>
+                        <th>單均能耗 (越低越好)</th>
+                        <th>完成訂單數</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background-color: #e9ecef;"><td>K_EVAL_queue_based</td><td style="font-weight: bold; color: #0056b3;">91.40%</td><td>54</td><td>659</td></tr>
+                    <tr style="background-color: #d4edda; border: 2px solid #155724;"><td>F_EVAL_nerl_step_b8000ticks</td><td style="font-weight: bold; color: #155724;">91.27%</td><td style="font-weight: bold; color: #155724;">33</td><td>659</td></tr>
+                    <tr style="background-color: #f1f3f5;"><td>I_EVAL_dqn_step_55000</td><td>90.78%</td><td>50</td><td>679</td></tr>
+                    <tr><td>D_EVAL_nerl_global_b3000ticks</td><td>90.68%</td><td>44</td><td>652</td></tr>
+                    <tr style="background-color: #f8d7da;"><td>H_EVAL_nerl_global_b8000ticks</td><td>89.20%</td><td>46</td><td>636</td></tr>
+                    <tr><td>L_EVAL_time_based</td><td>88.56%</td><td>45</td><td>627</td></tr>
+                    <tr><td>... (其他10組)</td><td>...</td><td>...</td><td>...</td></tr>
+                </tbody>
+            </table>
+            <p style="font-size: 1rem; text-align: center; margin-top: 0.5rem;">(此為節錄自論文 Table 4.3.1 的數據)</p>
+        </div>
+        <div class="slide-number">21</div>
+    </section>
+    
+    <section class="slide">
+        <h2>結果分析(1) - 過擬合的陷阱</h2>
+         <div class="content-grid">
+            <div class="image-placeholder">
+                <p>建議放置：<br/>H 組從「訓練冠軍」到「驗證平庸」的對比示意圖</p>
+            </div>
+            <div>
+                 <h3>關鍵發現 1:</h3>
+                <p>訓練時的冠軍，H 組 (`NERL-Global, 8k ticks`)，在最終驗證中表現不佳。</p>
+                <h3 style="margin-top: 2rem;">原因: 過擬合 (Overfitting)</h3>
+                <ul>
+                    <li>H 組學到了一套過於複雜、精巧的策略。</li>
+                    <li>該策略過於依賴訓練時的特定條件，導致「<strong>脆弱</strong>」。</li>
+                    <li>當測試場景延長、複雜度增加時，策略失效，暴露其<strong>泛化能力不足</strong>。</li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">22</div>
+    </section>
+
+    <section class="slide">
+        <h2>結果分析(2) - 綜合最優解的誕生</h2>
+        <div class="content-grid">
+            <div>
+                 <h3>關鍵發現 2:</h3>
+                <p>本研究的綜合最優模型是 <strong>F 組 (`NERL-Step, 低探索, 8k ticks`)</strong>。</p>
+                <h3 style="margin-top: 2rem;">數據支撐:</h3>
+                <ul>
+                    <li><strong>訂單完成率</strong>: <strong>91.27%</strong>，幾乎與單項冠軍持平 (產出能力頂尖)。</li>
+                    <li><strong>單均能耗</strong>: <strong>33 EU</strong>，遠低於其他高產出模型 (能源效率冠軍)。</li>
+                </ul>
+                <h3>結論:</h3>
+                <p>F 組在「<strong>效率</strong>」與「<strong>能耗</strong>」兩個核心目標之間取得了<strong>最佳的平衡</strong>。</p>
+            </div>
+             <div class="image-placeholder">
+                <p>核心圖表：<br/>散佈圖 (Scatter Plot)<br/>X軸: 單均能耗, Y軸: 訂單完成率<br/>(高亮標示 F 組在左上方的最優位置)</p>
+            </div>
+        </div>
+        <div class="slide-number">23</div>
+    </section>
+    
+    <section class="slide">
+        <h2>冠軍策略 F 組為何能勝出？</h2>
+        <div class="full-width">
+            <p>F 組的成功是其訓練配置共同作用的結果：</p>
+            <div class="content-grid" style="text-align: center; gap: 1rem; margin-top: 2rem;">
+                <div>
+                    <div class="image-placeholder" style="height: 120px;"><p>信號圖示</p></div>
+                    <h4>步階獎勵</h4>
+                    <p style="font-size: 1.2rem;">提供了<strong>穩定、清晰</strong>的學習信號。</p>
+                </div>
+                <div>
+                    <div class="image-placeholder" style="height: 120px;"><p>盾牌圖示</p></div>
+                    <h4>低探索性</h4>
+                    <p style="font-size: 1.2rem;">避免學到脆弱策略，保證了<strong>穩健性</strong>。</p>
+                </div>
+                <div>
+                    <div class="image-placeholder" style="height: 120px;"><p>望遠鏡圖示</p></div>
+                    <h4>長時評估</h4>
+                    <p style="font-size: 1.2rem;">賦予了模型足夠的<strong>長遠眼光</strong>。</p>
+                </div>
+            </div>
+             <h3 style="text-align: center; margin-top: 2.5rem;">核心思想: 追求一個不僅「聰明 (Smart)」、而且「可靠 (Reliable)」的解決方案。</h3>
+        </div>
+        <div class="slide-number">24</div>
+    </section>
+
+    <section class="slide">
+        <h2>研究總結 (Conclusion)</h2>
+        <div class="content-grid">
+            <div class="image-placeholder">
+                <p>建議放置：<br/>再次使用結果分析的散佈圖，<br/>僅高亮 F 組</p>
+            </div>
+            <div>
+                 <ul>
+                    <li><strong>核心問題</strong>: 解決 RMFS 的交通壅塞與高能耗。</li>
+                    <li><strong>主要方法</strong>: 提出基於 NERL 的路口控制器。</li>
+                    <li><strong>關鍵發現</strong>:
+                        <ul style="padding-left: 1.5rem;">
+                            <li>過擬合是真實風險，訓練最優 ≠ 最終最優。</li>
+                            <li>本研究的綜合最優解是 <strong>F 組</strong>，它學到了一個均衡、穩健的策略。</li>
+                        </ul>
+                    </li>
+                    <li><strong>最終論點</strong>: 追求策略的<strong>魯棒性</strong>與<strong>泛化能力</strong>至關重要。</li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">25</div>
+    </section>
+    
+    <section class="slide">
+        <h2>研究貢獻 (Contributions)</h2>
+        <div class="content-grid" style="text-align: center; gap: 1rem;">
+            <div>
+                <div class="image-placeholder" style="height: 100px;"><p>理論圖示</p></div>
+                <h4>理論貢獻</h4>
+                <p style="font-size: 1.2rem;">揭示了 DRL 在此領域的「訓練效能」與「泛化能力」的潛在鴻溝。</p>
+            </div>
+            <div>
+                <div class="image-placeholder" style="height: 100px;"><p>方法圖示</p></div>
+                <h4>方法貢獻</h4>
+                <p style="font-size: 1.2rem;">找出了一套能產生均衡、穩健策略的 NERL 有效訓練配置。</p>
+            </div>
+        </div>
+        <div class="content-grid" style="text-align: center; gap: 1rem; margin-top: 1rem;">
+             <div>
+                <div class="image-placeholder" style="height: 100px;"><p>應用圖示</p></div>
+                <h4>應用貢獻</h4>
+                <p style="font-size: 1.2rem;">提出的 F 組模型為業界提供了兼顧產出與能耗的高潛力方案。</p>
+            </div>
+            <div>
+                <div class="image-placeholder" style="height: 100px;"><p>設施圖示</p></div>
+                <h4>設施貢獻</h4>
+                <p style="font-size: 1.2rem;">建構的高擬真度、模組化模擬平台可作為未來研究的基礎。</p>
+            </div>
+        </div>
+        <div class="slide-number">26</div>
+    </section>
+    
+    <section class="slide">
+        <h2>研究限制與未來展望</h2>
+        <div class="content-grid">
+            <div>
+                <h3>研究限制</h3>
+                 <ul>
+                    <li>模擬與現實的差距 (Sim-to-Real Gap)。</li>
+                    <li>基於固定的倉庫佈局。</li>
+                    <li>簡化的任務模型。</li>
+                </ul>
+            </div>
+            <div>
+                <h3>未來展望</h3>
+                <ul>
+                    <li>研究遷移學習，部署至實體機器人。</li>
+                    <li>訓練能適應多種佈局的通用控制器。</li>
+                    <li>整合更高層的決策系統 (如任務分配)。</li>
+                    <li>引入 PPO、SAC 等更先進的演算法進行比較。</li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">27</div>
+    </section>
+    
+    <section class="slide title-slide">
+         <div class="centered-content">
+            <h1>Q & A</h1>
+            <p style="font-size: 2rem; margin-top: 2rem;">敬請指教</p>
+        </div>
+        <div class="slide-number">28</div>
+    </section>
+
+</body>
+</html> 

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Robot State Transition Diagram</title>
+<style>
+    /* --- Styles for the Diagram --- */
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #fff;
+    }
+    .diagram-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 20px;
+    }
+    .state-box {
+        border: 2px solid black;
+        background-color: white;
+        color: black;
+        padding: 15px 25px;
+        text-align: center;
+        min-width: 140px;
+        font-weight: bold;
+    }
+    .transition {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        min-width: 100px;
+    }
+    .arrow {
+        font-size: 2em;
+        line-height: 1;
+        color: black;
+    }
+    .label {
+        margin-top: 5px;
+        font-size: 0.8em;
+        color: #333;
+        white-space: nowrap;
+    }
+    .loop-container {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        margin-top: 25px;
+        position: relative;
+    }
+    .loop-line {
+        border-bottom: 2px dotted black;
+        flex-grow: 1;
+        margin: 0 10px;
+    }
+    .loop-arrow-up {
+        font-size: 1.5em;
+        line-height: 1;
+        transform: rotate(90deg);
+    }
+    .loop-arrow-left {
+        font-size: 1.5em;
+        line-height: 1;
+    }
+    .loop-label {
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.8em;
+        color: #333;
+        background-color: white;
+        padding: 0 5px;
+    }
+</style>
+</head>
+<body>
+
+    <div class="diagram-container">
+
+        <!-- Idle State -->
+        <div class="state-box">idle</div>
+
+        <!-- Transition to taking_pod -->
+        <div class="transition">
+            <div class="arrow">&rarr;</div>
+            <div class="label">Job Assigned</div>
+        </div>
+
+        <!-- taking_pod State -->
+        <div class="state-box">taking_pod</div>
+
+        <!-- Transition to delivering_pod -->
+        <div class="transition">
+            <div class="arrow">&rarr;</div>
+            <div class="label">Reached Pod Location</div>
+        </div>
+
+        <!-- delivering_pod State -->
+        <div class="state-box">delivering_pod</div>
+
+        <!-- Transition to station_processing -->
+        <div class="transition">
+            <div class="arrow">&rarr;</div>
+            <div class="label">Arrived at Station</div>
+        </div>
+        
+        <!-- station_processing State -->
+        <div class="state-box">station_processing</div>
+
+        <!-- Transition to returning_pod -->
+        <div class="transition">
+            <div class="arrow">&rarr;</div>
+            <div class="label">Processing Finished</div>
+        </div>
+
+        <!-- returning_pod State -->
+        <div class="state-box">returning_pod</div>
+    </div>
+
+    <!-- Loop back arrow from returning_pod to idle -->
+    <div class="loop-container">
+        <div class="loop-arrow-up">&larr;</div>
+        <div class="loop-line">
+            <div class="loop-label">Returned Pod to Storage / Job Completed</div>
+        </div>
+        <div class="loop-arrow-left"></div>
+    </div>
+
+</body>
+</html> 

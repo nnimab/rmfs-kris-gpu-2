@@ -777,7 +777,7 @@ def analyze_nerl_elite_evolution(experiment_dir, title, output_dir):
     experiment_path = Path(experiment_dir)
     # 為每個實驗創建一個專屬的子目錄
     exp_output_dir = Path(output_dir) / f"Elite_KPI_Evolution_{title}"
-    exp_output_dir.mkdir(exist_ok=True)
+    exp_output_dir.mkdir(parents=True, exist_ok=True)
 
     elite_kpi_data = []
     for gen_dir in sorted(experiment_path.glob('gen???')):

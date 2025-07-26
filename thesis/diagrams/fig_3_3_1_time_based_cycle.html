@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time-Based Controller Signal Cycle</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #fff;
+        color: black;
+        padding: 40px;
+    }
+    .timeline-container {
+        display: flex;
+        width: 100%;
+        border: 2px solid black;
+        height: 80px;
+        position: relative;
+    }
+    .phase {
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-weight: bold;
+        font-size: 1.2em;
+        position: relative;
+    }
+    .horizontal-phase {
+        width: 70%;
+        background-color: #e0e0e0;
+        border-right: 2px solid black;
+    }
+    .vertical-phase {
+        width: 30%;
+        background-color: #f5f5f5;
+    }
+    .tick-marker {
+        position: absolute;
+        bottom: -25px;
+        font-size: 0.9em;
+    }
+    .tick-marker.start { left: -10px; }
+    .tick-marker.mid { right: -2px; }
+    .tick-marker.end { right: -10px; }
+
+    .phase-label {
+        position: absolute;
+        top: -25px;
+        width: 100%;
+        text-align: center;
+        font-size: 0.9em;
+        font-style: italic;
+    }
+    .total-cycle {
+        text-align: center;
+        margin-top: 40px;
+        font-weight: bold;
+    }
+
+</style>
+</head>
+<body>
+
+    <div class="timeline-container">
+        <!-- Horizontal Green Phase -->
+        <div class="phase horizontal-phase">
+            <div class="phase-label">Horizontal Green (T_H_green = 70 ticks)</div>
+            Direction: Horizontal
+            <div class="tick-marker start">0</div>
+        </div>
+        
+        <!-- Vertical Green Phase -->
+        <div class="phase vertical-phase">
+            <div class="phase-label">Vertical Green (T_V_green = 30 ticks)</div>
+            Direction: Vertical
+            <div class="tick-marker mid">70</div>
+        </div>
+
+        <div class="tick-marker end">100</div>
+    </div>
+
+    <div class="total-cycle">
+        Total Cycle (T_cycle) = 100 ticks
+    </div>
+
+</body>
+</html> 

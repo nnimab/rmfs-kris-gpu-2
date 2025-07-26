@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DQN Training and Decision Process</title>
+<style>
+    body { font-family: Arial, sans-serif; background-color: #fff; color: black; padding: 20px; }
+    .main-container { display: flex; justify-content: space-around; gap: 20px; }
+    .process-container { border: 2px solid black; padding: 15px; width: 45%; }
+    h3 { text-align: center; border-bottom: 1px solid black; padding-bottom: 10px; margin-top: 0; }
+    .step { display: flex; align-items: center; margin-bottom: 15px; }
+    .step-number {
+        border: 1px solid black;
+        border-radius: 50%;
+        width: 25px;
+        height: 25px;
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        font-weight: bold;
+        margin-right: 10px;
+        flex-shrink: 0;
+    }
+    .arrow { text-align: center; font-size: 1.5em; line-height: 0.8; }
+    .connector {
+        position: absolute;
+        width: 15%;
+        left: 42.5%;
+        top: 250px;
+    }
+    .connector-arrow {
+        font-size: 2em;
+        line-height: 1;
+        text-align: center;
+    }
+    .connector-label {
+        font-size: 0.9em;
+        color: #333;
+        text-align: center;
+        margin-top: -10px;
+    }
+</style>
+</head>
+<body>
+
+<div class="main-container">
+
+    <!-- Agent-Environment Interaction Loop -->
+    <div class="process-container">
+        <h3>Decision Cycle (Agent-Environment Interaction)</h3>
+        <div class="step">
+            <div class="step-number">1</div>
+            <div>Receive state <b>s_t</b> from Environment</div>
+        </div>
+        <div class="arrow">&darr;</div>
+        <div class="step">
+            <div class="step-number">2</div>
+            <div>Policy Network Q(s, a; &theta;) selects action <b>a_t</b> (using &epsilon;-greedy)</div>
+        </div>
+        <div class="arrow">&darr;</div>
+        <div class="step">
+            <div class="step-number">3</div>
+            <div>Execute <b>a_t</b> in Environment, get reward <b>r_t</b> and next state <b>s_{t+1}</b></div>
+        </div>
+        <div class="arrow">&darr;</div>
+        <div class="step">
+            <div class="step-number">4</div>
+            <div>Store transition (s_t, a_t, r_t, s_{t+1}) in Experience Replay Memory <b>D</b></div>
+        </div>
+    </div>
+
+    <!-- Network Update Loop -->
+    <div class="process-container">
+        <h3>Training Cycle (Network Update)</h3>
+        <div class="step">
+            <div class="step-number">1</div>
+            <div>Sample a random minibatch of transitions from Memory <b>D</b></div>
+        </div>
+        <div class="arrow">&darr;</div>
+        <div class="step">
+            <div class="step-number">2</div>
+            <div>Calculate TD Target using Target Network Q(s', a'; &theta;<sup>-</sup>)</div>
+        </div>
+        <div class="arrow">&darr;</div>
+        <div class="step">
+            <div class="step-number">3</div>
+            <div>Calculate Loss (MSE) between TD Target and Policy Network's Q-value</div>
+        </div>
+        <div class="arrow">&darr;</div>
+        <div class="step">
+            <div class="step-number">4</div>
+            <div>Update Policy Network weights &theta; via Gradient Descent</div>
+        </div>
+        <div class="arrow">&darr;</div>
+        <div class="step">
+            <div class="step-number">5</div>
+            <div>Periodically, copy weights from Policy Network to Target Network (&theta;<sup>-</sup> &larr; &theta;)</div>
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html> 

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intersection Classification Diagram</title>
+<style>
+    body { font-family: Arial, sans-serif; background-color: #fff; color: black; padding: 20px; }
+    .legend { margin-bottom: 20px; border: 2px solid black; padding: 10px; display: inline-block;}
+    .legend-item { display: flex; align-items: center; margin-bottom: 5px; }
+    .legend-color {
+        width: 20px; height: 20px; border: 1px solid black; margin-right: 10px;
+        display: flex; justify-content: center; align-items: center; font-weight: bold;
+    }
+    .warehouse-container { display: flex; border: 2px solid black; }
+    .station-area {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        padding: 10px;
+        font-weight: bold;
+        text-align: center;
+    }
+    .picking-station { background-color: #d0e0f0; border-right: 2px solid black; }
+    .storage-grid {
+        display: grid;
+        grid-template-columns: repeat(12, 40px);
+        grid-template-rows: repeat(8, 40px);
+        gap: 2px;
+        background-color: #ccc;
+        padding: 5px;
+    }
+    .grid-cell {
+        background-color: white;
+        font-size: 1.2em;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+    }
+    .pod-location { background-color: #f0f0f0; }
+    .intersection-marker {
+        width: 12px; height: 12px;
+        position: absolute;
+        top: 1px; left: 1px;
+    }
+    .standard-intersection { border: 2px solid #aaa; border-radius: 50%; }
+    .critical-intersection { background-color: #ff4136; border-radius: 50%; } /* Red circle */
+    .critical-aisle { background-color: #ffc1bd; } /* Light red */
+</style>
+</head>
+<body>
+
+<h3>Figure 3.2.4 - Intersection Classification Diagram</h3>
+
+<div class="legend">
+    <div class="legend-item"><div class="legend-color" style="background-color: #d0e0f0;"></div> Picking Station</div>
+    <div class="legend-item"><div class="legend-color" style="background-color: #f0f0f0;"></div> Pod Location</div>
+    <div class="legend-item"><div class="legend-color"><div class="standard-intersection" style="width:100%; height:100%;"></div></div> Standard Intersection</div>
+    <div class="legend-item"><div class="legend-color"><div class="critical-intersection" style="width:100%; height:100%;"></div></div> Critical Intersection</div>
+    <div class="legend-item"><div class="legend-color" style="background-color: #ffc1bd;"></div> Path to/from Station (Critical)</div>
+</div>
+
+<div class="warehouse-container">
+    <div class="station-area picking-station">Picking Station Area</div>
+    <div class="storage-grid">
+        <!-- Grid cells with markers -->
+        <!-- Row 1 -->
+        <div class="grid-cell critical-aisle"><div class="critical-intersection"></div></div><div class="grid-cell critical-aisle">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div>
+        <!-- Row 2 -->
+        <div class="grid-cell critical-aisle">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div>
+        <!-- Row 3 -->
+        <div class="grid-cell critical-aisle"><div class="critical-intersection"></div></div><div class="grid-cell critical-aisle">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div>
+        <!-- Row 4 -->
+        <div class="grid-cell critical-aisle">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div>
+        <!-- Row 5 -->
+        <div class="grid-cell critical-aisle"><div class="critical-intersection"></div></div><div class="grid-cell critical-aisle">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div>
+        <!-- Row 6 -->
+        <div class="grid-cell critical-aisle">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div>
+        <!-- Row 7 -->
+        <div class="grid-cell critical-aisle"><div class="critical-intersection"></div></div><div class="grid-cell critical-aisle">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h"><div class="standard-intersection"></div></div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div>
+        <!-- Row 8 -->
+        <div class="grid-cell critical-aisle">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div>
+    </div>
+</div>
+
+</body>
+</html> 

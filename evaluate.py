@@ -12,6 +12,7 @@ import signal
 import sys
 import numpy as np
 import pandas as pd
+import pickle
 from datetime import datetime
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -110,14 +111,17 @@ class ControllerEvaluator:
         
         try:
             # 初始化NetLogo模型
-            nl = netlogo.NetLogo(gui=False)
-            nl.load_model('rmfs.nlogo')
+            # 使用 netlogo.py 的 setup 函數
+            netlogo.setup()
             
-            # 設置基本參數
-            nl.command("setup")
+            # 載入 warehouse 狀態
+            import pickle
+            with open('netlogo.state', 'rb') as file:
+                warehouse = pickle.load(file)
             
             # 創建控制器實例
             controller_type = controller_config['type']
+            controller = None
             
             if controller_type == 'dqn':
                 controller = DQNController(
@@ -133,11 +137,21 @@ class ControllerEvaluator:
                 controller = QueueBasedController()
             elif controller_type == 'time_based':
                 controller = TimeBasedController()
+            elif controller_type == 'none':
+                # 無控制器模式
+                controller = None
+                self.logger.info("使用無控制器模式 - 不進行交通控制")
             else:
                 raise ValueError(f"未知的控制器類型: {controller_type}")
             
-            # 設置控制器
-            nl.set_controller(controller)
+            # 設置控制器（如果有的話）
+            if controller is not None:
+                # 使用 warehouse 的 set_traffic_controller 方法
+                warehouse.set_traffic_controller(controller_type, model_path=controller_config.get('model_path'))
+            else:
+                # 無控制器模式 - 不啟用交通控制
+                warehouse.update_intersection_using_RL = False
+                warehouse.current_controller = "none"
             
             # 運行評估
             self.logger.info(f"開始運行 {self.evaluation_ticks} ticks...")
@@ -166,7 +180,11 @@ class ControllerEvaluator:
                 tick_start = time.time()
                 
                 # 執行一個tick
-                nl.command("go")
+                warehouse.tick()
+                
+                # 更新狀態檔案
+                with open('netlogo.state', 'wb') as file:
+                    pickle.dump(warehouse, file)
                 
                 # 記錄時間
                 tick_time = time.time() - tick_start
@@ -175,33 +193,35 @@ class ControllerEvaluator:
                 # 定期收集統計
                 if tick % tick_interval == 0 or tick == self.evaluation_ticks - 1:
                     # 收集當前統計
-                    current_completed = nl.report("length filter [status = \"delivered\"] orders")
-                    current_total = nl.report("length orders")
+                    current_completed = len([o for o in warehouse.order_manager.orders if o.status == "delivered"])
+                    current_total = len(warehouse.order_manager.orders)
                     
                     # 更新累計統計
                     metrics['completed_orders'] = current_completed
                     metrics['total_orders'] = current_total
                     
                     # 收集機器人統計
-                    total_robots = nl.report("count robots")
-                    working_robots = nl.report("count robots with [length current-path > 0]")
+                    total_robots = len(warehouse.robot_manager.robots)
+                    working_robots = len([r for r in warehouse.robot_manager.robots if len(r.path) > 0])
                     
                     metrics['total_robots'] = total_robots
                     
                     # 收集等待時間
-                    avg_wait = nl.report("mean [total-wait-time] of robots")
+                    total_wait = sum(r.total_wait_time for r in warehouse.robot_manager.robots)
+                    avg_wait = total_wait / total_robots if total_robots > 0 else 0
                     metrics['total_wait_time'] += avg_wait * total_robots if avg_wait > 0 else 0
                     
                     # 收集能源消耗
-                    total_energy = nl.report("sum [energy-consumed] of robots")
+                    total_energy = sum(r.energy_consumed for r in warehouse.robot_manager.robots)
                     metrics['total_energy_consumed'] = total_energy
                     
                     # 收集交通控制統計（如果控制器支援）
-                    if hasattr(controller, 'get_signal_switch_count'):
-                        metrics['signal_switch_count'] = controller.get_signal_switch_count()
-                    
-                    if hasattr(controller, 'getAverageTrafficRate'):
-                        metrics['avg_traffic_rate'] = controller.getAverageTrafficRate()
+                    if controller is not None:
+                        if hasattr(controller, 'get_signal_switch_count'):
+                            metrics['signal_switch_count'] = controller.get_signal_switch_count()
+                        
+                        if hasattr(controller, 'getAverageTrafficRate'):
+                            metrics['avg_traffic_rate'] = controller.getAverageTrafficRate()
                     
                     # 記錄進度
                     if tick % 1000 == 0:
@@ -210,7 +230,7 @@ class ControllerEvaluator:
             
             # 計算最終統計
             execution_time = time.time() - start_time
-            final_tick = nl.report("ticks")
+            final_tick = warehouse._tick
             
             # 計算衍生指標
             completion_rate = metrics['completed_orders'] / metrics['total_orders'] if metrics['total_orders'] > 0 else 0
@@ -248,7 +268,9 @@ class ControllerEvaluator:
                            f"執行時間: {execution_time:.1f}秒")
             
             # 清理
-            nl.quit()
+            # 清理臨時檔案
+            if os.path.exists('netlogo.state'):
+                os.remove('netlogo.state')
             
             return result
             
@@ -305,29 +327,20 @@ class ControllerEvaluator:
         """運行完整評估"""
         self.logger.info("開始控制器性能評估")
         
-        if controller_specs:
+        if controller_specs is not None:
             # 使用指定的控制器
             controllers_to_evaluate = self.parse_controller_specs(controller_specs)
             self.logger.info(f"解析控制器規格: {controller_specs}")
             self.logger.info(f"解析結果: {list(controllers_to_evaluate.keys())}")
         else:
-            # 載入所有可用的控制器
-            trained_models = self.load_trained_models()
-            
-            # 添加傳統控制器
+            # 無控制器模式
+            self.logger.info("未指定控制器，將執行無控制器評估模式")
             controllers_to_evaluate = {
-                **trained_models,
-                'queue_based': {
-                    'type': 'queue_based',
+                'no_controller': {
+                    'type': 'none',
                     'reward_mode': None,
                     'model_path': None,
-                    'metadata': {'controller_type': 'queue_based'}
-                },
-                'time_based': {
-                    'type': 'time_based', 
-                    'reward_mode': None,
-                    'model_path': None,
-                    'metadata': {'controller_type': 'time_based'}
+                    'metadata': {'controller_type': 'none'}
                 }
             }
         

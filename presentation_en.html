@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Presentation - Neuroevolution Reinforcement Learning for Traffic Control in RMFS</title>
+    <style>
+        :root {
+            --slide-width: 11in;
+            --slide-height: 6.18in; /* 16:9 aspect ratio */
+            --main-font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            --heading-font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            --text-color: #333;
+            --heading-color: #111;
+            --bg-color: #f8f9fa;
+            --slide-bg: #ffffff;
+            --border-color: #dee2e6;
+        }
+
+        body {
+            font-family: var(--main-font);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 2rem 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .slide {
+            background: var(--slide-bg);
+            width: var(--slide-width);
+            height: var(--slide-height);
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem 4rem;
+            box-sizing: border-box;
+            position: relative;
+            page-break-after: always;
+        }
+        
+        .slide:last-of-type {
+            page-break-after: avoid;
+        }
+        
+        .slide-number {
+            position: absolute;
+            bottom: 20px;
+            right: 30px;
+            font-size: 1rem;
+            color: #aaa;
+        }
+        
+        .title-slide {
+            justify-content: center;
+            text-align: center;
+        }
+
+        h1, h2, h3 {
+            font-family: var(--heading-font);
+            color: var(--heading-color);
+            margin-top: 0;
+        }
+
+        h1 {
+            font-size: 2.5rem; /* Adjusted for longer title */
+            margin-bottom: 1.5rem;
+        }
+        
+        h2 {
+            font-size: 2.2rem;
+            width: 100%;
+            text-align: left;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        h3 {
+            font-size: 1.6rem;
+            margin-bottom: 1rem;
+        }
+
+        p, li {
+            font-size: 1.4rem;
+            line-height: 1.6;
+            max-width: 100%;
+        }
+        
+        ul {
+            text-align: left;
+            width: 100%;
+            padding-left: 2rem;
+        }
+        
+        li {
+            margin-bottom: 0.75rem;
+        }
+        
+        strong {
+            color: #0056b3;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            width: 100%;
+            align-items: center;
+        }
+        
+        .full-width {
+            width: 100%;
+        }
+
+        .image-placeholder {
+            width: 100%;
+            height: 250px;
+            background-color: #e9ecef;
+            border: 1px dashed #ced4da;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: #6c757d;
+            font-size: 1.2rem;
+            border-radius: 4px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 1rem;
+        }
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 0.6rem;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f1f3f5;
+        }
+        
+        .centered-content {
+             width: 100%;
+             height: 100%;
+             display: flex;
+             flex-direction: column;
+             justify-content: center;
+             align-items: center;
+             text-align: center;
+        }
+
+        @media print {
+            @page {
+                size: landscape;
+                margin: 0;
+            }
+
+            body {
+                background-color: var(--slide-bg);
+                padding: 0;
+            }
+
+            .slide {
+                width: 100vw;
+                height: 100vh;
+                border: none;
+                box-shadow: none;
+                margin: 0;
+                padding: 4vw;
+                page-break-before: always;
+            }
+            
+            .slide:first-of-type {
+                page-break-before: avoid;
+            }
+            
+            .slide-number {
+                bottom: 3vh;
+                right: 4vw;
+            }
+
+            h1 { font-size: 5vh; }
+            h2 { font-size: 4.5vh; }
+            p, li { font-size: 3vh; line-height: 1.5; }
+            table { font-size: 2vh; }
+        }
+    </style>
+</head>
+<body>
+
+    <section class="slide title-slide">
+        <div class="centered-content">
+            <h1>Neuroevolution Reinforcement Learning for Traffic Control in Robotic Mobile Fulfillment Systems</h1>
+            <p style="font-size: 1.8rem; margin-top: 2rem;">Presenter: [Your Name]</p>
+            <p style="font-size: 1.5rem;">Advisor: [Advisor's Name]</p>
+            <p style="font-size: 1.5rem;">Date: June 2025</p>
+        </div>
+        <div class="slide-number">1</div>
+    </section>
+    
+    <section class="slide">
+        <h2>Outline</h2>
+        <ul>
+            <li><h3>Background and Motivation</h3></li>
+            <li><h3>Research Objectives and Methodology</h3></li>
+            <li><h3>Experimental Design and Results</h3></li>
+            <li><h3>Conclusion and Future Work</h3></li>
+        </ul>
+        <div class="slide-number">2</div>
+    </section>
+
+    <section class="slide">
+        <h2>Background (1): The Rise of E-commerce and Automated Warehousing</h2>
+        <div class="content-grid">
+            <div>
+                <ul>
+                    <li><strong>Trend</strong>: The rapid growth of e-commerce is changing the structure of retail worldwide.</li>
+                    <li><strong>New Norm</strong>: Customer orders are now smaller, more frequent, and need to be delivered faster.</li>
+                    <li><strong>Solution</strong>: Many companies are now using <strong>Robotic Mobile Fulfillment Systems (RMFS)</strong>.</li>
+                    <li style="list-style-type: none; margin-left: 1rem;">↳ Hundreds of Autonomous Mobile Robots (AMRs) work together to make order picking much faster.</li>
+                </ul>
+            </div>
+            <div class="image-placeholder">
+                <p>Suggested figure:<br/>Global e-commerce growth trend or RMFS operational schematic</p>
+            </div>
+        </div>
+        <div class="slide-number">3</div>
+    </section>
+
+    <section class="slide">
+        <h2>Background (2): The New Bottleneck - Congestion and Energy Consumption</h2>
+        <div class="content-grid">
+             <div class="image-placeholder">
+                <p>Suggested figure:<br/>Simplified warehouse grid with congestion highlighted at intersections</p>
+            </div>
+            <div>
+                <ul>
+                    <li>High numbers of robots create new problems, especially at <strong>intersections</strong>:</li>
+                    <li><strong>Traffic Congestion</strong>: Robots often have to wait in line, which causes delays.</li>
+                    <li><strong>Efficiency Loss</strong>: Congestion slows down the entire warehouse system.</li>
+                    <li><strong>Energy Waste</strong>: Frequent <strong>starting and stopping</strong> uses a lot of extra energy.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">4</div>
+    </section>
+
+    <section class="slide">
+        <h2>Background (3): The Impending Pressure of Sustainability</h2>
+         <div class="content-grid">
+            <div>
+                <ul>
+                    <li><strong>Global Trend</strong>: <strong>Sustainability</strong> and <strong>carbon neutrality</strong> are now important goals for governments and businesses worldwide.</li>
+                     <li style="list-style-type: none; margin-left: 1rem;">↳ Logistics and warehousing cause about 24% of global carbon emissions.</li>
+                    <li><strong>Policy Pressure</strong>: The EU's <strong>Carbon Border Adjustment Mechanism (CBAM)</strong> is active.</li>
+                     <li style="list-style-type: none; margin-left: 1rem;">↳ By 2026, it will add <strong>extra costs</strong> to products with high carbon footprints.</li>
+                    <li><strong>Conclusion</strong>: Saving energy is no longer just a "nice to have," but something companies <strong>must do</strong> to succeed.</li>
+                </ul>
+            </div>
+            <div class="image-placeholder">
+                <p>Suggested figures:<br/>Left: Pie chart of carbon emission sources<br/>Right: Diagram of CBAM's supply chain pressure</p>
+            </div>
+        </div>
+        <div class="slide-number">5</div>
+    </section>
+    
+    <section class="slide">
+        <h2>Literature Review and Research Gap</h2>
+        <div class="content-grid">
+            <div>
+                <h3>Existing Research Directions:</h3>
+                <ul>
+                    <li><strong>Order-level</strong>: Using smart scheduling to reduce costs (Mousavi et al., 2024).</li>
+                    <li><strong>Energy-level</strong>: Saving energy by changing robot speeds (Song et al., 2025).</li>
+                </ul>
+                <h3 style="margin-top: 2rem;">Identified Research Gap:</h3>
+                 <ul>
+                    <li>A lack of detailed traffic control strategies focused at the <strong>intersection-level</strong>.</li>
+                    <li>Finding the right balance between <strong>operational efficiency</strong> and <strong>energy saving</strong> still needs more research.</li>
+                </ul>
+            </div>
+            <div class="image-placeholder">
+                <p>Suggested figure:<br/>2x2 Research Positioning Matrix<br/>X-axis: Control Granularity<br/>Y-axis: Optimization Objective</p>
+            </div>
+        </div>
+        <div class="slide-number">6</div>
+    </section>
+
+    <section class="slide">
+        <h2>This Study's Approach and Contribution</h2>
+        <div class="full-width">
+            <h3 style="text-align: center;">Core Research Question:</h3>
+            <p style="text-align: center; font-style: italic;">How can we design an intersection controller that saves the most energy while keeping the warehouse running fast?</p>
+            
+            <div class="content-grid" style="margin-top: 2rem;">
+                 <div class="image-placeholder">
+                    <p>Suggested figure:<br/>NERL Conceptual Diagram (Input → Model → Output)</p>
+                </div>
+                <div>
+                    <h3>Proposed Method:</h3>
+                    <p>A new type of intersection controller based on <strong>Neuroevolution Reinforcement Learning (NERL)</strong>.</p>
+                    <h3>Method Advantages:</h3>
+                    <ul>
+                        <li>Uses <strong>Evolutionary Algorithms</strong> to search for the best general strategies.</li>
+                        <li>Uses <strong>Deep Reinforcement Learning</strong> to make fast, real-time decisions.</li>
+                    </ul>
+                     <h3>Ultimate Goal:</h3>
+                    <p>To create a smart system that can <strong>adapt to traffic and save energy</strong>.</p>
+                </div>
+            </div>
+        </div>
+        <div class="slide-number">7</div>
+    </section>
+    
+    <section class="slide">
+        <h2>Research Objectives</h2>
+        <div class="full-width">
+            <p>To solve this problem, our research had four main goals:</p>
+            <div class="content-grid" style="gap: 1rem; text-align: center; margin-top: 2rem;">
+                <div>
+                    <div class="image-placeholder" style="height: 120px;"><p>Platform Icon</p></div>
+                    <h3>1. Build a Realistic Simulation</h3>
+                    <p style="font-size: 1.2rem;">Create a simulation of a warehouse that feels like the real world.</p>
+                </div>
+                <div>
+                    <div class="image-placeholder" style="height: 120px;"><p>Strategy Icon</p></div>
+                    <h3>2. Design Multiple Controllers</h3>
+                    <p style="font-size: 1.2rem;">Implement simple rule-based controllers and advanced AI controllers.</p>
+                </div>
+                 <div>
+                    <div class="image-placeholder" style="height: 120px;"><p>Matrix Icon</p></div>
+                    <h3>3. Run Careful Experiments</h3>
+                     <p style="font-size: 1.2rem;">Set up 12 different experiment groups to compare them fairly.</p>
+                </div>
+                 <div>
+                    <div class="image-placeholder" style="height: 120px;"><p>Analysis Icon</p></div>
+                    <h3>4. Analyze the Results</h3>
+                     <p style="font-size: 1.2rem;">Use statistics to prove that our new method is better.</p>
+                </div>
+            </div>
+        </div>
+        <div class="slide-number">8</div>
+    </section>
+    
+    <section class="slide">
+        <h2>System Overview: The Simulation Environment</h2>
+        <div class="content-grid">
+            <div class="image-placeholder">
+                <p>Core figure:<br/>Thesis Figure 3.2.1<br/>Warehouse Layout Schematic<br/>(showing storage, stations, one-way aisles)</p>
+            </div>
+            <div>
+                <h3>Physical Layout:</h3>
+                <ul>
+                    <li><strong>Central Storage Area</strong>: Uses strict <strong>one-way paths</strong> to prevent robots from running into each other.</li>
+                    <li><strong>Perimeter Areas</strong>: Includes <strong>Picking Stations</strong> (for outgoing orders) and <strong>Replenishment Stations</strong> (for incoming stock).</li>
+                </ul>
+                <h3>Core Dynamics:</h3>
+                 <ul>
+                    <li>The system is driven by <strong>Orders</strong>, which are broken down into smaller tasks called <strong>Jobs</strong>.</li>
+                    <li><strong>Robots</strong> follow a simple set of states (e.g., idle, fetching, delivering) to complete jobs.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">9</div>
+    </section>
+    
+    <section class="slide">
+        <h2>System Overview: Defining Critical Intersections</h2>
+        <div class="content-grid">
+            <div>
+                 <h3>Intersection Classification:</h3>
+                <ul>
+                    <li><strong>Standard Intersections</strong>: The normal intersections in the warehouse grid.</li>
+                    <li><strong>Critical Intersections</strong>:
+                        <ul style="padding-left: 1.5rem;">
+                            <li><strong>Definition</strong>: The entry and exit points for all <strong>workstations</strong>.</li>
+                            <li><strong>Importance</strong>: They are the main <strong>choke points</strong> of the system and can cause major traffic jams.</li>
+                             <li><strong>Strategy</strong>: We tell our AI to pay more attention to them during learning.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+             <div class="image-placeholder">
+                <p>Core figure:<br/>Warehouse Layout<br/>(with all "Critical Intersections" highlighted)</p>
+            </div>
+        </div>
+        <div class="slide-number">10</div>
+    </section>
+    
+    <section class="slide">
+        <h2>System Overview: Control System Architecture</h2>
+        <div class="content-grid">
+            <div class="image-placeholder">
+                <p>Core figure:<br/>Thesis Figure 3.2.1<br/>Traffic Control System Sequence Diagram<br/>(UML)</p>
+            </div>
+            <div>
+                <h3>Core Design:</h3>
+                <ul>
+                    <li><strong>Strategy Pattern</strong>: Separates the "brain" (the algorithm) from the "body" (the simulation) so we can easily test different brains.</li>
+                    <li><strong>Factory Pattern</strong>: Allows us to switch between controllers using a simple configuration file.</li>
+                </ul>
+                <h3>How It Works:</h3>
+                 <ol style="font-size: 1.2rem; line-height: 1.5;">
+                    <li>The simulation asks the manager for a decision.</li>
+                    <li>The manager asks the current controller (e.g., DQN).</li>
+                    <li>The controller gives its decision.</li>
+                    <li>The manager applies the decision and tells the AI to learn from it.</li>
+                </ol>
+            </div>
+        </div>
+        <div class="slide-number">11</div>
+    </section>
+
+    <section class="slide">
+        <h2>Baseline Controller (1): Time-Based</h2>
+        <div class="content-grid">
+            <div class="image-placeholder">
+                <p>Suggested figure:<br/>Timeline graph<br/>(showing 70-tick horizontal and 30-tick vertical green phases)</p>
+            </div>
+            <div>
+                <h3>Time-Based Controller</h3>
+                <ul>
+                    <li><strong>Logic</strong>: Works like a simple traffic light, switching signals on a fixed timer (70 ticks for one way, 30 for the other).</li>
+                    <li><strong>Advantage</strong>: Very simple and predictable.</li>
+                    <li><strong>Disadvantage</strong>: It doesn't pay attention to the actual traffic, which can waste time.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">12</div>
+    </section>
+
+    <section class="slide">
+        <h2>Baseline Controller (2): Queue-Based</h2>
+        <div class="content-grid">
+             <div>
+                <h3>Queue-Based Controller</h3>
+                <ul>
+                    <li><strong>Logic</strong>: A strategy that reacts to the current situation. It gives the green light to the direction with more urgent demand.</li>
+                    <li><strong>Scoring Function</strong>: <br><strong>Score = (Number of Robots) × (Task Importance)</strong></li>
+                    <li><strong>Characteristic</strong>: It adapts to real-time traffic, making it a smarter and stronger simple controller.</li>
+                </ul>
+            </div>
+            <div class="image-placeholder">
+                 <p>Suggested figure:<br/>Balance scale diagram<br/>(showing the weighted score of each queue determining the outcome)</p>
+            </div>
+        </div>
+        <div class="slide-number">13</div>
+    </section>
+    
+    <section class="slide">
+        <h2>DRL Controller Design: State and Action</h2>
+        <div class="content-grid">
+            <div>
+                <h3>State Space (What the AI Sees)</h3>
+                <p>A set of <strong>17 data points</strong>, including info about the intersection itself, its neighbors, and the whole warehouse.</p>
+                
+                <h3 style="margin-top: 1.5rem;">Action Space (What the AI Does)</h3>
+                <p>A list of <strong>6 possible actions</strong>, including changing the signal and adjusting the speed limit.</p>
+                
+                 <h3 style="margin-top: 1.5rem;">Reward Function (How the AI Learns)</h3>
+                <ul>
+                    <li><strong>Step Reward</strong>: Frequent, local feedback on immediate actions.</li>
+                    <li><strong>Global Reward</strong>: End-of-episode feedback on overall performance (output vs. cost).</li>
+                </ul>
+            </div>
+            <div class="image-placeholder">
+                <p>Core figure:<br/>Classic DRL Agent-Environment Interaction Loop</p>
+            </div>
+        </div>
+        <div class="slide-number">14</div>
+    </section>
+    
+    <section class="slide">
+        <h2>DRL Controller Design: DQN vs. NERL</h2>
+         <div class="content-grid">
+            <div>
+                <h3>Deep Q-Network (DQN) - DRL Baseline</h3>
+                <ul>
+                    <li><strong>Role</strong>: Used as a strong baseline for comparison.</li>
+                    <li><strong>Objective</strong>: Learns to predict how good an action is in a given situation.</li>
+                    <li><strong>Learning Method</strong>: Updates its network using <strong>gradient descent</strong>.</li>
+                </ul>
+            </div>
+            <div>
+                <h3>Neuroevolution (NERL) - Core Contribution</h3>
+                <ul>
+                     <li><strong>Role</strong>: The main new method of this research.</li>
+                    <li><strong>Objective</strong>: Directly searches for the best network settings (parameters).</li>
+                    <li><strong>Learning Method</strong>: Creates better policies over generations using <strong>evolutionary algorithms</strong>.</li>
+                </ul>
+            </div>
+        </div>
+        <p style="text-align: center; margin-top: 2rem; background-color: #e9ecef; padding: 1rem; border-radius: 5px;"><strong>A Note on Fair Comparison</strong>: To be fair, all DQN and NERL models use the exact same network structure (same number of layers and nodes).</p>
+        <div class="slide-number">15</div>
+    </section>
+
+    <section class="slide">
+        <h2>Experimental Design Overview</h2>
+        <div class="full-width">
+            <div class="image-placeholder">
+                <p>Suggested figure:<br/>Experimental Funnel Diagram</p>
+            </div>
+             <div class="content-grid" style="margin-top: 2rem;">
+                 <div>
+                    <h3>Training Phase</h3>
+                    <ul>
+                        <li>We trained <strong>10</strong> Deep Reinforcement Learning models:</li>
+                        <li><strong>8 NERL models</strong>: Testing 8 different combinations of settings.</li>
+                        <li><strong>2 DQN models</strong>: Used as strong AI baselines.</li>
+                    </ul>
+                </div>
+                 <div>
+                    <h3>Final Validation Phase</h3>
+                     <ul>
+                        <li>We compared the <strong>10 trained AI models</strong>...</li>
+                        <li>...against the <strong>2 simple rule-based baselines</strong>.</li>
+                        <li>This created a final test with a total of <strong>12 controllers</strong>.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="slide-number">16</div>
+    </section>
+
+    <section class="slide">
+        <h2>Results (1): Confirming Effective Learning</h2>
+        <div class="full-width">
+            <p>First, we analyzed the learning process for Group A (NERL-Step, High Exploration) over 30 generations:</p>
+            <div class="image-placeholder">
+                <p>Core figure: Thesis Figure 4.2.1<br/>(a) Fitness, (b) Completion Rate, (c) Energy per Order<br/>(with trendline slopes annotated)</p>
+            </div>
+            <ul style="margin-top: 1.5rem;">
+                <li><strong>Best Fitness Score</strong>: Showed a strong upward trend (Slope <strong>+1594</strong>). The model was improving.</li>
+                <li><strong>Completion Rate</strong>: Trended upwards (Slope <strong>+0.0008</strong>). The system was getting faster.</li>
+                <li><strong>Energy per Order</strong>: Showed a strong downward trend (Slope <strong>-2.69</strong>). The system was using less energy.</li>
+            </ul>
+             <p><strong>Conclusion</strong>: The NERL model successfully learned to improve both speed and energy use at the same time.</p>
+        </div>
+        <div class="slide-number">17</div>
+    </section>
+
+    <section class="slide">
+        <h2>Training Insight (1): Step Rewards Provide a Clearer Signal</h2>
+        <div class="content-grid">
+            <div class="image-placeholder">
+                <p>Suggested figure:<br/>Evolutionary trend comparison of Completion Rate (Step vs. Global)</p>
+            </div>
+            <div>
+                <h3>Step vs. Global Reward</h3>
+                <ul>
+                    <li><strong>Step Reward</strong>:
+                        <ul>
+                            <li>Gives frequent and immediate feedback.</li>
+                            <li>This clearly guided the model to learn good strategies, leading to a positive trend in performance.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Global Reward</strong>:
+                        <ul>
+                            <li>Gives feedback only at the very end. This makes it hard for the model to know which action was good or bad.</li>
+                            <li>This "noisy" signal confused the learning process, leading to a negative trend.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">18</div>
+    </section>
+
+    <section class="slide">
+        <h2>Training Insight (2): Insufficient Exploration is a Learning Trap</h2>
+        <div class="content-grid">
+            <div>
+                <h3>High vs. Low Exploration</h3>
+                <ul>
+                    <li><strong>High Exploration</strong>:
+                        <ul>
+                            <li>Although unstable at first, it allows the model to explore more options.</li>
+                            <li>This is necessary to avoid getting stuck on a "good-enough" solution and to find the best one.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Low Exploration</strong>:
+                        <ul>
+                            <li>The model learns smoothly but gets stuck too early on a bad strategy.</li>
+                            <li>It can learn a "play-it-safe" strategy that ends up stopping traffic, hurting the main goal.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+            <div class="image-placeholder">
+                <p>Suggested figure:<br/>Evolutionary trend comparison of Fitness or Completion Rate (High vs. Low Exploration)</p>
+            </div>
+        </div>
+        <div class="slide-number">19</div>
+    </section>
+    
+    <section class="slide">
+        <h2>Training Insight (3): Evaluation Duration is Not "Longer is Better"</h2>
+        <div class="content-grid">
+             <div class="image-placeholder">
+                <p>Suggested figure:<br/>Evolutionary trend comparison of Energy per Order (3000 vs. 8000 ticks)</p>
+            </div>
+            <div>
+                <h3>Short vs. Long Evaluation</h3>
+                 <ul>
+                    <li><strong>The Problem</strong>: Using frequent Step Rewards with a very long evaluation time.</li>
+                    <li><strong>Reward Signal Dilution</strong>:
+                        <ul>
+                            <li>In a long episode, the reward for one good action gets lost. The model can't tell what worked.</li>
+                        </ul>
+                    </li>
+                     <li><strong>Learning the Wrong Thing</strong>:
+                        <ul>
+                             <li>The model might learn to focus on small, immediate rewards (like not switching signals) even if it hurts overall performance in the long run.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">20</div>
+    </section>
+
+    <section class="slide">
+        <h2>Results: Final Performance Validation</h2>
+        <div class="full-width">
+            <h3 style="text-align: center;">Core Question: Which strategy performs best in a long, realistic test?</h3>
+            <p style="text-align: center;">All 12 controllers were evaluated in a standardized, 50,000-tick scenario.</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Experiment Group</th>
+                        <th>Completion Rate</th>
+                        <th>Energy per Order (Lower is Better)</th>
+                        <th>Completed Orders</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="background-color: #e9ecef;"><td>K_EVAL_queue_based</td><td style="font-weight: bold; color: #0056b3;">91.40%</td><td>54</td><td>659</td></tr>
+                    <tr style="background-color: #d4edda; border: 2px solid #155724;"><td>F_EVAL_nerl_step_b8000ticks</td><td style="font-weight: bold; color: #155724;">91.27%</td><td style="font-weight: bold; color: #155724;">33</td><td>659</td></tr>
+                    <tr style="background-color: #f1f3f5;"><td>I_EVAL_dqn_step_55000</td><td>90.78%</td><td>50</td><td>679</td></tr>
+                    <tr><td>D_EVAL_nerl_global_b3000ticks</td><td>90.68%</td><td>44</td><td>652</td></tr>
+                    <tr style="background-color: #f8d7da;"><td>H_EVAL_nerl_global_b8000ticks</td><td>89.20%</td><td>46</td><td>636</td></tr>
+                    <tr><td>L_EVAL_time_based</td><td>88.56%</td><td>45</td><td>627</td></tr>
+                    <tr><td>... (Other 10 groups)</td><td>...</td><td>...</td><td>...</td></tr>
+                </tbody>
+            </table>
+            <p style="font-size: 1rem; text-align: center; margin-top: 0.5rem;">(Data excerpted from Thesis Table 4.3.1)</p>
+        </div>
+        <div class="slide-number">21</div>
+    </section>
+    
+    <section class="slide">
+        <h2>Analysis (1): The Trap of Overfitting</h2>
+         <div class="content-grid">
+            <div class="image-placeholder">
+                <p>Suggested figure:<br/>Diagram showing Group H's performance drop from "Training Champion" to "Validation Mediocrity"</p>
+            </div>
+            <div>
+                 <h3>Key Finding 1:</h3>
+                <p>The champion of the training phase, Group H, performed poorly in the final validation test.</p>
+                <h3 style="margin-top: 2rem;">Reason: Overfitting</h3>
+                <ul>
+                    <li>Group H learned a very complex strategy that was too specialized for the training conditions.</li>
+                    <li>This made the strategy "<strong>brittle</strong>" or fragile.</li>
+                    <li>In a longer, more complex test, the strategy failed, showing it could not <strong>adapt to new situations</strong>.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">22</div>
+    </section>
+
+    <section class="slide">
+        <h2>Analysis (2): The Best Overall Solution</h2>
+        <div class="content-grid">
+            <div>
+                 <h3>Key Finding 2:</h3>
+                <p>The best overall model in our study is <strong>Group F (NERL-Step, Low-Explore, 8k ticks)</strong>.</p>
+                <h3 style="margin-top: 2rem;">By the Numbers:</h3>
+                <ul>
+                    <li><strong>Completion Rate</strong>: <strong>91.27%</strong>, almost the highest score, proving its excellent speed.</li>
+                    <li><strong>Energy per Order</strong>: Only <strong>33 EU</strong>, making it the most energy-efficient of all the fast models.</li>
+                </ul>
+                <h3>Conclusion:</h3>
+                <p>Group F found the <strong>best balance</strong> between the two important goals of speed and energy saving.</p>
+            </div>
+             <div class="image-placeholder">
+                <p>Core figure:<br/>Scatter Plot<br/>X-axis: Energy per Order, Y-axis: Completion Rate<br/>(Highlighting Group F in the optimal top-left quadrant)</p>
+            </div>
+        </div>
+        <div class="slide-number">23</div>
+    </section>
+    
+    <section class="slide">
+        <h2>Why The Winning Strategy (Group F) Succeeded</h2>
+        <div class="full-width">
+            <p>Group F's success came from its specific combination of training settings:</p>
+            <div class="content-grid" style="text-align: center; gap: 1rem; margin-top: 2rem;">
+                <div>
+                    <div class="image-placeholder" style="height: 120px;"><p>Signal Icon</p></div>
+                    <h4>Step Reward</h4>
+                    <p style="font-size: 1.2rem;">Provided a <strong>stable and clear</strong> learning signal.</p>
+                </div>
+                <div>
+                    <div class="image-placeholder" style="height: 120px;"><p>Shield Icon</p></div>
+                    <h4>Low Exploration</h4>
+                    <p style="font-size: 1.2rem;">Avoided risky strategies, ensuring the policy was <strong>reliable</strong>.</p>
+                </div>
+                <div>
+                    <div class="image-placeholder" style="height: 120px;"><p>Telescope Icon</p></div>
+                    <h4>Long Evaluation</h4>
+                    <p style="font-size: 1.2rem;">Gave the model a good view of <strong>long-term goals</strong>.</p>
+                </div>
+            </div>
+             <h3 style="text-align: center; margin-top: 2.5rem;">Key Idea: A reliable solution is better than a clever one that sometimes fails.</h3>
+        </div>
+        <div class="slide-number">24</div>
+    </section>
+
+    <section class="slide">
+        <h2>Conclusion</h2>
+        <div class="content-grid">
+            <div class="image-placeholder">
+                <p>Suggested figure:<br/>Reuse the scatter plot, highlighting only Group F</p>
+            </div>
+            <div>
+                 <ul>
+                    <li><strong>Problem</strong>: To solve traffic congestion and high energy use in RMFS.</li>
+                    <li><strong>Method</strong>: Proposed a new intersection controller using NERL.</li>
+                    <li><strong>Key Findings</strong>:
+                        <ul style="padding-left: 1.5rem;">
+                            <li>Good performance in training doesn't guarantee success in the final test.</li>
+                            <li>The best overall solution was <strong>Group F</strong>, which learned a balanced and reliable policy.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Final Point</strong>: It is most important to create policies that are <strong>reliable and can adapt</strong>.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">25</div>
+    </section>
+    
+    <section class="slide">
+        <h2>Research Contributions</h2>
+        <div class="content-grid" style="text-align: center; gap: 1rem;">
+            <div>
+                <div class="image-placeholder" style="height: 100px;"><p>Theory Icon</p></div>
+                <h4>Theoretical</h4>
+                <p style="font-size: 1.2rem;">Our experiments showed that training performance can be different from final, real-world performance.</p>
+            </div>
+            <div>
+                <div class="image-placeholder" style="height: 100px;"><p>Methodological</p></div>
+                <h4>Methodological</h4>
+                <p style="font-size: 1.2rem;">We found a good combination of settings to train NERL for this problem, creating a balanced and reliable policy.</p>
+            </div>
+        </div>
+        <div class="content-grid" style="text-align: center; gap: 1rem; margin-top: 1rem;">
+             <div>
+                <div class="image-placeholder" style="height: 100px;"><p>Practical</p></div>
+                <h4>Practical</h4>
+                <p style="font-size: 1.2rem;">Our Group F model is a promising solution for real warehouses to improve speed and save energy costs.</p>
+            </div>
+            <div>
+                <div class="image-placeholder" style="height: 100px;"><p>Platform</p></div>
+                <h4>Platform</h4>
+                <p style="font-size: 1.2rem;">The realistic simulation platform we built can be used for future research by others.</p>
+            </div>
+        </div>
+        <div class="slide-number">26</div>
+    </section>
+    
+    <section class="slide">
+        <h2>Limitations and Future Work</h2>
+        <div class="content-grid">
+            <div>
+                <h3>Limitations</h3>
+                 <ul>
+                    <li>The simulation is not the same as the real world (Sim-to-Real Gap).</li>
+                    <li>Our tests used only one warehouse layout.</li>
+                    <li>We used simplified task models.</li>
+                </ul>
+            </div>
+            <div>
+                <h3>Future Work</h3>
+                <ul>
+                    <li>Study how to transfer the trained AI to physical robots.</li>
+                    <li>Train a controller that works well in many different warehouse layouts.</li>
+                    <li>Combine our work with systems that manage high-level tasks and routes.</li>
+                    <li>Compare our method with other modern AI algorithms like PPO or SAC.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="slide-number">27</div>
+    </section>
+    
+    <section class="slide title-slide">
+         <div class="centered-content">
+            <h1>Q & A</h1>
+            <p style="font-size: 2rem; margin-top: 2rem;">Thank you.</p>
+        </div>
+        <div class="slide-number">28</div>
+    </section>
+
+</body>
+</html> 

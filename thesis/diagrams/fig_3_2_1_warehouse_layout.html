@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warehouse Layout Diagram</title>
+<style>
+    body { font-family: Arial, sans-serif; background-color: #fff; color: black; padding: 20px; }
+    .legend { margin-bottom: 20px; border: 2px solid black; padding: 10px; display: inline-block;}
+    .legend-item { display: flex; align-items: center; margin-bottom: 5px; }
+    .legend-color { width: 20px; height: 20px; border: 1px solid black; margin-right: 10px; }
+    .warehouse-container { display: flex; border: 2px solid black; }
+    .station-area {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        padding: 10px;
+        font-weight: bold;
+        text-align: center;
+    }
+    .picking-station { background-color: #d0e0f0; border-right: 2px solid black; }
+    .replenishment-station { background-color: #d0f0d0; border-left: 2px solid black; }
+    .storage-grid {
+        display: grid;
+        grid-template-columns: repeat(10, 40px);
+        grid-template-rows: repeat(8, 40px);
+        gap: 2px;
+        background-color: #ccc;
+        padding: 5px;
+    }
+    .grid-cell {
+        background-color: white;
+        font-size: 1.2em;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .pod-location { background-color: #f0f0f0; }
+    .charging-station { background-color: #fffacd; font-weight: bold; }
+    .aisle-h, .aisle-v { background-color: #ffffff; }
+</style>
+</head>
+<body>
+
+<h3>Figure 3.2.1 - Warehouse Layout Diagram</h3>
+
+<div class="legend">
+    <div class="legend-item"><div class="legend-color" style="background-color: #d0e0f0;"></div> Picking Station</div>
+    <div class="legend-item"><div class="legend-color" style="background-color: #d0f0d0;"></div> Replenishment Station</div>
+    <div class="legend-item"><div class="legend-color" style="background-color: #f0f0f0;"></div> Pod Location</div>
+    <div class="legend-item"><div class="legend-color" style="background-color: #fffacd;"></div> Charging Station (C)</div>
+    <div class="legend-item"><div class="legend-color" style="background-color: #ffffff;"></div> Aisle (One-way)</div>
+</div>
+
+<div class="warehouse-container">
+    <div class="station-area picking-station">Picking Station Area</div>
+    <div class="storage-grid">
+        <!-- Row 1 (Aisle) -->
+        <div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div>
+        <!-- Row 2 (Pods & Aisle) -->
+        <div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell charging-station">C</div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div>
+        <!-- Row 3 (Aisle) -->
+        <div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div>
+        <!-- Row 4 (Pods & Aisle) -->
+        <div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell charging-station">C</div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div>
+        <!-- Row 5 (Aisle) -->
+        <div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div><div class="grid-cell aisle-h">&rarr;</div>
+        <!-- Row 6 (Pods & Aisle) -->
+        <div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div>
+        <!-- Row 7 (Aisle) -->
+        <div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div><div class="grid-cell aisle-h">&larr;</div>
+        <!-- Row 8 (Pods & Aisle) -->
+        <div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell charging-station">C</div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div><div class="grid-cell pod-location"></div><div class="grid-cell aisle-v">&darr;</div>
+    </div>
+    <div class="station-area replenishment-station">Replenishment Station Area</div>
+</div>
+
+</body>
+</html> 

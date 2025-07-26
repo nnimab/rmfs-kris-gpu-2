@@ -228,7 +228,8 @@ select_controllers() {
     echo ""
     echo -e "${BLUE}選擇要評估的控制器:${NC}"
     echo -e "${YELLOW}輸入編號（多個編號用空格分隔），或輸入 'all' 評估所有控制器${NC}"
-    echo -e "${YELLOW}範例: 1 2 3 或 all${NC}"
+    echo -e "${YELLOW}或輸入 'none' 執行不使用任何控制器的實驗${NC}"
+    echo -e "${YELLOW}範例: 1 2 3 或 all 或 none${NC}"
     echo ""
     
     read -p "請選擇: " selection
@@ -240,6 +241,12 @@ select_controllers() {
         for i in "${!CONTROLLER_SPEC[@]}"; do
             SELECTED_CONTROLLERS+=("${CONTROLLER_SPEC[$i]}")
         done
+    elif [ "$selection" = "none" ]; then
+        # 不選擇任何控制器
+        echo -e "${GREEN}已選擇不使用任何控制器的實驗模式${NC}"
+        echo -e "${CYAN}將執行純粹的環境模擬，不進行交通控制${NC}"
+        SELECTED_CONTROLLERS=("none")
+        return 0
     else
         # 解析選擇的編號
         for num in $selection; do
@@ -373,11 +380,15 @@ run_single_session_evaluation() {
         eval_command="$eval_command --output_dir $output_dir"
         eval_command="$eval_command --seed $((42 + run_num - 1))"  # 每次運行使用不同的種子
         
-        # 添加選擇的控制器
-        eval_command="$eval_command --controllers"
-        for controller in "${SELECTED_CONTROLLERS[@]}"; do
-            eval_command="$eval_command $controller"
-        done
+        # 添加選擇的控制器（如果不是 none 模式）
+        if [ "${SELECTED_CONTROLLERS[0]}" != "none" ]; then
+            eval_command="$eval_command --controllers"
+            for controller in "${SELECTED_CONTROLLERS[@]}"; do
+                eval_command="$eval_command $controller"
+            done
+        else
+            echo -e "${CYAN}執行無控制器模式${NC}"
+        fi
         
         echo -e "${BLUE}運行 $run_num/$NUM_RUNS:${NC}"
         echo -e "${YELLOW}命令: $eval_command${NC}"
@@ -488,7 +499,11 @@ run_multi_session_evaluation() {
         controller="${SELECTED_CONTROLLERS[$i]}"
         
         # 生成控制器的顯示名稱和目錄名稱
-        if [[ "$controller" == *":"* ]]; then
+        if [ "$controller" = "none" ]; then
+            # 無控制器模式
+            controller_dir="no_controller"
+            display_name="無控制器模式"
+        elif [[ "$controller" == *":"* ]]; then
             # AI 模型：提取檔名
             model_type=$(echo "$controller" | cut -d':' -f1)
             model_path=$(echo "$controller" | cut -d':' -f2-)
@@ -524,7 +539,12 @@ run_multi_session_evaluation() {
             eval_command="$eval_command --eval_ticks $EVAL_TICKS"
             eval_command="$eval_command --num_runs 1"  # 每次運行只執行一次
             eval_command="$eval_command --output_dir $output_dir"
-            eval_command="$eval_command --controllers $controller"
+            
+            # 只有在不是 none 模式時才添加控制器參數
+            if [ "$controller" != "none" ]; then
+                eval_command="$eval_command --controllers $controller"
+            fi
+            
             eval_command="$eval_command --seed $((42 + (i * NUM_RUNS) + run_num - 1))"  # 唯一的種子
             
             # 創建 screen 會話
@@ -796,6 +816,11 @@ quick_evaluation() {
     echo -e "${BLUE}執行${desc}...${NC}"
     echo -e "${YELLOW}評估參數: $ticks ticks, 3 次重複${NC}"
     
+    # 詢問是否包含無控制器模式
+    echo ""
+    echo -e "${CYAN}是否要包含無控制器模式進行比較？[y/N]: ${NC}"
+    read -p "" include_none
+    
     # 掃描可用的模型
     scan_available_models > /dev/null
     
@@ -804,6 +829,12 @@ quick_evaluation() {
     for i in "${!CONTROLLER_SPEC[@]}"; do
         SELECTED_CONTROLLERS+=("${CONTROLLER_SPEC[$i]}")
     done
+    
+    # 如果選擇包含無控制器模式
+    if [ "$include_none" = "y" ] || [ "$include_none" = "Y" ]; then
+        SELECTED_CONTROLLERS+=("none")
+        echo -e "${GREEN}已加入無控制器模式${NC}"
+    fi
     
     EVAL_TICKS=$ticks
     NUM_RUNS=3
