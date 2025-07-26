@@ -1007,7 +1007,14 @@ stop_evaluation_task() {
     done <<< "$session_list"
     
     echo ""
-    echo -e "${YELLOW}選擇要停止的任務編號 [1-$((index-1))]，或輸入 'all' 停止所有任務，0 取消:${NC}"
+    echo -e "${YELLOW}停止選項:${NC}"
+    echo -e "  • 輸入單個編號停止特定任務 (例如: 5)"
+    echo -e "  • 輸入多個編號停止多個任務 (例如: 1 3 5 7)"
+    echo -e "  • 輸入範圍停止連續任務 (例如: 5-10)"
+    echo -e "  • 輸入 'all' 停止所有任務"
+    echo -e "  • 輸入 'pattern' 按模式停止 (例如: 停止所有 nerl 或 dqn)"
+    echo -e "  • 輸入 0 取消"
+    echo ""
     read -p "請選擇: " choice
     
     if [ "$choice" = "0" ]; then
@@ -1036,8 +1043,114 @@ stop_evaluation_task() {
         else
             echo -e "${YELLOW}取消操作${NC}"
         fi
+    elif [ "$choice" = "pattern" ]; then
+        # 按模式停止
+        echo -e "${CYAN}請輸入要停止的模式 (例如: nerl, dqn, step, global):${NC}"
+        read -p "模式: " pattern
+        
+        if [ -n "$pattern" ]; then
+            # 找出匹配的會話
+            local matched_sessions=()
+            local matched_count=0
+            
+            for i in "${!session_array[@]}"; do
+                if [ -n "${session_array[$i]}" ]; then
+                    session_full="${session_array[$i]}"
+                    if [[ "$session_full" == *"$pattern"* ]]; then
+                        matched_sessions+=("$session_full")
+                        ((matched_count++))
+                    fi
+                fi
+            done
+            
+            if [ $matched_count -gt 0 ]; then
+                echo -e "${YELLOW}找到 $matched_count 個匹配的會話${NC}"
+                echo -e "${RED}確定要停止所有包含 '$pattern' 的任務嗎? (y/N)${NC}"
+                read -p "輸入 'y' 確認: " confirm
+                
+                if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+                    for session_full in "${matched_sessions[@]}"; do
+                        session_name=$(echo "$session_full" | cut -d'.' -f2-)
+                        screen -S "$session_full" -X quit 2>/dev/null
+                        if [ $? -eq 0 ]; then
+                            echo -e "${GREEN}✅ 已停止: $session_name${NC}"
+                        else
+                            echo -e "${RED}❌ 無法停止: $session_name${NC}"
+                        fi
+                    done
+                else
+                    echo -e "${YELLOW}取消操作${NC}"
+                fi
+            else
+                echo -e "${YELLOW}沒有找到匹配 '$pattern' 的會話${NC}"
+            fi
+        fi
+    elif [[ "$choice" =~ ^[0-9]+-[0-9]+$ ]]; then
+        # 處理範圍選擇 (例如: 5-10)
+        local start_num=$(echo "$choice" | cut -d'-' -f1)
+        local end_num=$(echo "$choice" | cut -d'-' -f2)
+        
+        if [ "$start_num" -ge 1 ] && [ "$end_num" -lt "$index" ] && [ "$start_num" -le "$end_num" ]; then
+            local count=$((end_num - start_num + 1))
+            echo -e "${RED}確定要停止編號 $start_num 到 $end_num 的 $count 個任務嗎? (y/N)${NC}"
+            read -p "輸入 'y' 確認: " confirm
+            
+            if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+                for i in $(seq $start_num $end_num); do
+                    if [ -n "${session_array[$i]}" ]; then
+                        session_full="${session_array[$i]}"
+                        session_name=$(echo "$session_full" | cut -d'.' -f2-)
+                        screen -S "$session_full" -X quit 2>/dev/null
+                        if [ $? -eq 0 ]; then
+                            echo -e "${GREEN}✅ 已停止 [$i]: $session_name${NC}"
+                        else
+                            echo -e "${RED}❌ 無法停止 [$i]: $session_name${NC}"
+                        fi
+                    fi
+                done
+            else
+                echo -e "${YELLOW}取消操作${NC}"
+            fi
+        else
+            echo -e "${RED}無效的範圍${NC}"
+        fi
+    elif [[ "$choice" =~ ^[0-9]+([[:space:]]+[0-9]+)*$ ]]; then
+        # 處理多個編號 (例如: 1 3 5 7)
+        local nums=($choice)
+        local valid_nums=()
+        
+        # 驗證所有編號
+        for num in "${nums[@]}"; do
+            if [ "$num" -ge 1 ] && [ "$num" -lt "$index" ]; then
+                valid_nums+=("$num")
+            else
+                echo -e "${YELLOW}忽略無效編號: $num${NC}"
+            fi
+        done
+        
+        if [ ${#valid_nums[@]} -gt 0 ]; then
+            echo -e "${RED}確定要停止 ${#valid_nums[@]} 個任務嗎? (y/N)${NC}"
+            read -p "輸入 'y' 確認: " confirm
+            
+            if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+                for num in "${valid_nums[@]}"; do
+                    session_full="${session_array[$num]}"
+                    session_name=$(echo "$session_full" | cut -d'.' -f2-)
+                    screen -S "$session_full" -X quit 2>/dev/null
+                    if [ $? -eq 0 ]; then
+                        echo -e "${GREEN}✅ 已停止 [$num]: $session_name${NC}"
+                    else
+                        echo -e "${RED}❌ 無法停止 [$num]: $session_name${NC}"
+                    fi
+                done
+            else
+                echo -e "${YELLOW}取消操作${NC}"
+            fi
+        else
+            echo -e "${RED}沒有有效的編號${NC}"
+        fi
     elif [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -lt "$index" ]; then
-        # 停止特定任務
+        # 停止單個任務
         session_full="${session_array[$choice]}"
         session_name=$(echo "$session_full" | cut -d'.' -f2-)
         
