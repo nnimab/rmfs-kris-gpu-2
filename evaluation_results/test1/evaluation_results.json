@@ -1,0 +1,78 @@
+{
+  "evaluation_config": {
+    "evaluation_ticks": 2000,
+    "num_runs": 3,
+    "timestamp": "2025-07-27_050008"
+  },
+  "results": [
+    {
+      "controller_name": "time_based",
+      "controller_type": "time_based",
+      "run_id": 0,
+      "evaluation_ticks": 2000,
+      "warehouse_final_tick": 300.00000000000017,
+      "completed_orders": 10,
+      "total_orders": 17,
+      "completion_rate": 0.5882352941176471,
+      "avg_wait_time": 0.3918333333333331,
+      "robot_utilization": 0.0,
+      "total_energy": 1824.6062106250006,
+      "energy_per_order": 182.46062106250005,
+      "signal_switch_count": 0,
+      "avg_traffic_rate": 0.0,
+      "execution_time": 108.78574061393738,
+      "avg_tick_time": 0.05108025503158569,
+      "timestamp": "2025-07-27T04:56:29.613370",
+      "controller_metadata": {
+        "controller_type": "time_based"
+      }
+    },
+    {
+      "controller_name": "time_based",
+      "controller_type": "time_based",
+      "run_id": 1,
+      "evaluation_ticks": 2000,
+      "warehouse_final_tick": 300.00000000000017,
+      "completed_orders": 10,
+      "total_orders": 17,
+      "completion_rate": 0.5882352941176471,
+      "avg_wait_time": 0.3978333333333331,
+      "robot_utilization": 0.0,
+      "total_energy": 1350.4272500000004,
+      "energy_per_order": 135.04272500000005,
+      "signal_switch_count": 0,
+      "avg_traffic_rate": 0.0,
+      "execution_time": 110.29625177383423,
+      "avg_tick_time": 0.05366230344772339,
+      "timestamp": "2025-07-27T04:58:19.911105",
+      "controller_metadata": {
+        "controller_type": "time_based"
+      }
+    },
+    {
+      "controller_name": "time_based",
+      "controller_type": "time_based",
+      "run_id": 2,
+      "evaluation_ticks": 2000,
+      "warehouse_final_tick": 300.00000000000017,
+      "completed_orders": 8,
+      "total_orders": 17,
+      "completion_rate": 0.47058823529411764,
+      "avg_wait_time": 0.3409999999999998,
+      "robot_utilization": 0.0,
+      "total_energy": 1554.0482450000015,
+      "energy_per_order": 194.2560306250002,
+      "signal_switch_count": 0,
+      "avg_traffic_rate": 0.0,
+      "execution_time": 108.61279582977295,
+      "avg_tick_time": 0.052690324187278745,
+      "timestamp": "2025-07-27T05:00:08.526296",
+      "controller_metadata": {
+        "controller_type": "time_based"
+      }
+    }
+  ],
+  "controllers_evaluated": [
+    "time_based"
+  ]
+}

@@ -51,10 +51,21 @@ class ControllerEvaluator:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             base_dir = Path("result/evaluations")
             base_dir.mkdir(parents=True, exist_ok=True)
-            self.output_dir = base_dir / f"EVAL_{timestamp}_{evaluation_ticks}ticks"
+            
+            # 包含 SIMULATION_ID 在目錄名稱中
+            sim_id = os.environ.get('SIMULATION_ID', '')
+            if sim_id:
+                self.output_dir = base_dir / f"EVAL_{sim_id}_{timestamp}_{evaluation_ticks}ticks"
+            else:
+                self.output_dir = base_dir / f"EVAL_{timestamp}_{evaluation_ticks}ticks"
         else:
-            # 如果指定了輸出目錄，直接使用
-            self.output_dir = Path(output_dir)
+            # 如果指定了輸出目錄，也要檢查是否需要加上 SIMULATION_ID
+            sim_id = os.environ.get('SIMULATION_ID', '')
+            if sim_id and not str(output_dir).endswith(sim_id):
+                # 在指定的目錄後面加上 SIMULATION_ID
+                self.output_dir = Path(output_dir) / sim_id
+            else:
+                self.output_dir = Path(output_dir)
         
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
@@ -243,13 +254,26 @@ class ControllerEvaluator:
                     # 使用 warehouse.total_energy 而非機器人累計，以保持與歷史評估的一致性
                     metrics['total_energy_consumed'] = warehouse.total_energy
                     
-                    # 收集交通控制統計（如果控制器支援）
-                    if controller is not None:
-                        if hasattr(controller, 'get_signal_switch_count'):
-                            metrics['signal_switch_count'] = controller.get_signal_switch_count()
-                        
-                        if hasattr(controller, 'getAverageTrafficRate'):
-                            metrics['avg_traffic_rate'] = controller.getAverageTrafficRate()
+                    # 收集交通控制統計
+                    # 從所有路口收集信號切換次數
+                    total_signal_switches = 0
+                    for intersection in warehouse.intersection_manager.intersections:
+                        if hasattr(intersection, 'signal_switch_count'):
+                            total_signal_switches += intersection.signal_switch_count
+                    metrics['signal_switch_count'] = total_signal_switches
+                    
+                    # 收集平均交通流率（如果控制器支援）
+                    if controller is not None and hasattr(controller, 'getAverageTrafficRate'):
+                        metrics['avg_traffic_rate'] = controller.getAverageTrafficRate()
+                    else:
+                        # 計算平均交通流率：總通過機器人數 / 總路口數 / 時間
+                        total_passed = 0
+                        for intersection in warehouse.intersection_manager.intersections:
+                            total_passed += intersection.total_robots_passed
+                        if len(warehouse.intersection_manager.intersections) > 0 and tick > 0:
+                            metrics['avg_traffic_rate'] = total_passed / len(warehouse.intersection_manager.intersections) / tick
+                        else:
+                            metrics['avg_traffic_rate'] = 0.0
                     
                     # 記錄進度
                     if tick % 1000 == 0:

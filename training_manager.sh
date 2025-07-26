@@ -112,7 +112,15 @@ start_training() {
         fi
         
         export PYTHONPATH=$PROJECT_DIR:\$PYTHONPATH
+        # 檢查是否已有外部設定的 SIMULATION_ID
+        if [ -z "\$SIMULATION_ID" ]; then
+            export SIMULATION_ID='train_${task_name}_$(date +%Y%m%d_%H%M%S)'
+        else
+            # 保留外部設定的值
+            export SIMULATION_ID='\$SIMULATION_ID'
+        fi
         echo '開始訓練任務: $task_name'
+        echo 'SIMULATION_ID: '\$SIMULATION_ID
         echo '時間: \$(date)'
         echo '命令: $command'
         echo '================================='
@@ -573,7 +581,9 @@ run_controller_evaluation() {
             fi
             
             export PYTHONPATH=$PROJECT_DIR:\$PYTHONPATH
+            export SIMULATION_ID='eval_from_training_$(date +%Y%m%d_%H%M%S)'
             echo '開始控制器性能評估'
+            echo 'SIMULATION_ID: '\$SIMULATION_ID
             echo '時間: \$(date)'
             echo '評估參數: $eval_ticks ticks, $num_runs 次重複'
             echo '================================='

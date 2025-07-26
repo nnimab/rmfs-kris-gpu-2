@@ -821,11 +821,18 @@ def main():
     # --- 【修改點 1：在這裡建立訓練目錄與日誌】 ---
     # 1. 創建專屬的訓練目錄
     timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    # 包含 variant 參數在目錄名稱中
+    
+    # 檢查是否有 SIMULATION_ID 環境變數
+    sim_id = os.environ.get('SIMULATION_ID', '')
+    
+    # 建立目錄名稱，包含 SIMULATION_ID（如果有的話）
+    dir_parts = [timestamp, args.agent, args.reward_mode]
     if args.variant:
-        training_dir = os.path.join("models", "training_runs", f"{timestamp}_{args.agent}_{args.reward_mode}_{args.variant}")
-    else:
-        training_dir = os.path.join("models", "training_runs", f"{timestamp}_{args.agent}_{args.reward_mode}")
+        dir_parts.append(args.variant)
+    if sim_id:
+        dir_parts.insert(0, sim_id)  # 將 SIMULATION_ID 放在最前面
+    
+    training_dir = os.path.join("models", "training_runs", "_".join(dir_parts))
     os.makedirs(training_dir, exist_ok=True)
 
     # 2. 定義日誌檔案的完整路徑

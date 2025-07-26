@@ -1,3 +1,2 @@
 controller_name,controller_type,run_id,evaluation_ticks,warehouse_final_tick,completed_orders,total_orders,completion_rate,avg_wait_time,robot_utilization,total_energy,energy_per_order,signal_switch_count,avg_traffic_rate,execution_time,avg_tick_time,timestamp,controller_metadata
-no_controller,none,0,50000,7499.999999993497,189,212,0.8915094339622641,0.0,0.0,44692.56044999995,236.46857380952358,0,0.0,3381.5595078468323,0.06746064883708953,2025-07-27T04:28:36.790015,{'controller_type': 'none'}
-no_controller,none,1,50000,211.65000000000515,9,15,0.6,0.0,0.0,1065.1619649999989,118.35132944444432,0,0.0,94.30680179595947,0.06496367329490008,2025-07-27T04:30:11.098795,{'controller_type': 'none'}
+time_based,time_based,0,2000,4.199999999999999,0,15,0.0,0.0,0.0,0,0,0,0.0,8.737291812896729,0.06940173251288277,2025-07-27T04:52:28.662329,{'controller_type': 'time_based'}

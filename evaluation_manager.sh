@@ -373,6 +373,15 @@ run_single_session_evaluation() {
         run_timestamp="${base_timestamp}_RUN${run_num}"
         output_dir="${base_output_dir}/RUN_${run_num}"
         
+        # 為並行執行設定唯一的 SIMULATION_ID
+        # 檢查是否已有外部設定的 SIMULATION_ID
+        if [ -z "$SIMULATION_ID" ]; then
+            export SIMULATION_ID="batch_${base_timestamp}_run${run_num}"
+        else
+            # 如果有外部設定，加上 run 編號以區分
+            export SIMULATION_ID="${SIMULATION_ID}_run${run_num}"
+        fi
+        
         # 構建 Python 評估命令 - 注意這裡將 --num_runs 硬編碼為 1
         eval_command="python evaluate.py"
         eval_command="$eval_command --eval_ticks $EVAL_TICKS"
@@ -403,6 +412,7 @@ run_single_session_evaluation() {
                 export PYTHONPATH=$PROJECT_DIR:\$PYTHONPATH
                 export LANG=zh_TW.UTF-8
                 export LC_ALL=zh_TW.UTF-8
+                export SIMULATION_ID='batch_${base_timestamp}_run${run_num}'
                 
                 echo '==============================================='
                 echo 'RMFS 評估任務 - 批次運行 $run_num/$NUM_RUNS'
@@ -554,6 +564,7 @@ run_multi_session_evaluation() {
                 export PYTHONPATH=$PROJECT_DIR:\$PYTHONPATH
                 export LANG=zh_TW.UTF-8
                 export LC_ALL=zh_TW.UTF-8
+                export SIMULATION_ID='multi_${base_timestamp}_${i}_run${run_num}'
                 
                 echo '==============================================='
                 echo 'RMFS 評估任務 - 多會話模式'
