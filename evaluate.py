@@ -42,11 +42,21 @@ from ai.controllers.time_based_controller import TimeBasedController
 from lib.logger import get_logger
 
 class ControllerEvaluator:
-    def __init__(self, evaluation_ticks=5000, num_runs=3, output_dir="evaluation_results"):
+    def __init__(self, evaluation_ticks=5000, num_runs=3, output_dir=None):
         self.evaluation_ticks = evaluation_ticks
         self.num_runs = num_runs
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(exist_ok=True)
+        
+        # 如果沒有指定輸出目錄，創建帶時間戳的子目錄
+        if output_dir is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_dir = Path("result/evaluations")
+            base_dir.mkdir(parents=True, exist_ok=True)
+            self.output_dir = base_dir / f"EVAL_{timestamp}_{evaluation_ticks}ticks"
+        else:
+            # 如果指定了輸出目錄，直接使用
+            self.output_dir = Path(output_dir)
+        
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         
         # 設置日誌
         log_file = self.output_dir / "evaluation.log"
@@ -116,7 +126,17 @@ class ControllerEvaluator:
             
             # 載入 warehouse 狀態
             import pickle
-            with open('netlogo.state', 'rb') as file:
+            # 確保 states 資料夾存在
+            state_dir = 'states'
+            if not os.path.exists(state_dir):
+                os.makedirs(state_dir)
+            
+            sim_id = os.environ.get('SIMULATION_ID', '')
+            if sim_id:
+                state_file = os.path.join(state_dir, f'netlogo_{sim_id}.state')
+            else:
+                state_file = os.path.join(state_dir, 'netlogo.state')
+            with open(state_file, 'rb') as file:
                 warehouse = pickle.load(file)
             
             # 創建控制器實例
@@ -171,6 +191,8 @@ class ControllerEvaluator:
             
             # 主評估循環
             tick_interval = 100  # 每100個tick記錄一次
+            save_interval = 5000  # 每5000個tick保存一次狀態（減少I/O）
+            
             for tick in range(self.evaluation_ticks):
                 # 檢查是否被中斷
                 if interrupted:
@@ -182,9 +204,11 @@ class ControllerEvaluator:
                 # 執行一個tick
                 warehouse.tick()
                 
-                # 更新狀態檔案
-                with open('netlogo.state', 'wb') as file:
-                    pickle.dump(warehouse, file)
+                # 只在特定間隔或最後一個tick時保存狀態
+                if tick % save_interval == 0 or tick == self.evaluation_ticks - 1:
+                    with open(state_file, 'wb') as file:
+                        pickle.dump(warehouse, file)
+                    self.logger.debug(f"保存狀態在 tick {tick}")
                 
                 # 記錄時間
                 tick_time = time.time() - tick_start
@@ -193,7 +217,7 @@ class ControllerEvaluator:
                 # 定期收集統計
                 if tick % tick_interval == 0 or tick == self.evaluation_ticks - 1:
                     # 收集當前統計
-                    current_completed = len([o for o in warehouse.order_manager.orders if o.status == "delivered"])
+                    current_completed = len(warehouse.order_manager.finished_orders)
                     current_total = len(warehouse.order_manager.orders)
                     
                     # 更新累計統計
@@ -202,18 +226,22 @@ class ControllerEvaluator:
                     
                     # 收集機器人統計
                     total_robots = len(warehouse.robot_manager.robots)
-                    working_robots = len([r for r in warehouse.robot_manager.robots if len(r.path) > 0])
+                    working_robots = len([r for r in warehouse.robot_manager.robots if hasattr(r, 'route_stop_points') and len(r.route_stop_points) > 0])
                     
                     metrics['total_robots'] = total_robots
                     
                     # 收集等待時間
-                    total_wait = sum(r.total_wait_time for r in warehouse.robot_manager.robots)
-                    avg_wait = total_wait / total_robots if total_robots > 0 else 0
-                    metrics['total_wait_time'] += avg_wait * total_robots if avg_wait > 0 else 0
+                    # 計算所有機器人在所有路口的總等待時間
+                    total_wait = 0
+                    for robot in warehouse.robot_manager.robots:
+                        if hasattr(robot, 'intersection_wait_time'):
+                            total_wait += sum(robot.intersection_wait_time.values())
+                    # 累加總等待時間，而不是平均值
+                    metrics['total_wait_time'] = total_wait
                     
                     # 收集能源消耗
-                    total_energy = sum(r.energy_consumed for r in warehouse.robot_manager.robots)
-                    metrics['total_energy_consumed'] = total_energy
+                    # 使用 warehouse.total_energy 而非機器人累計，以保持與歷史評估的一致性
+                    metrics['total_energy_consumed'] = warehouse.total_energy
                     
                     # 收集交通控制統計（如果控制器支援）
                     if controller is not None:
@@ -234,7 +262,8 @@ class ControllerEvaluator:
             
             # 計算衍生指標
             completion_rate = metrics['completed_orders'] / metrics['total_orders'] if metrics['total_orders'] > 0 else 0
-            avg_wait_time = metrics['total_wait_time'] / (final_tick * metrics['total_robots']) if metrics['total_robots'] > 0 else 0
+            # 平均等待時間 = 總等待時間 / (機器人數 * tick數)
+            avg_wait_time = metrics['total_wait_time'] / (metrics['total_robots'] * final_tick) if (metrics['total_robots'] > 0 and final_tick > 0) else 0
             robot_utilization = metrics['total_robot_active_time'] / (final_tick * metrics['total_robots']) if metrics['total_robots'] > 0 else 0
             energy_per_order = metrics['total_energy_consumed'] / metrics['completed_orders'] if metrics['completed_orders'] > 0 else 0
             
@@ -250,7 +279,7 @@ class ControllerEvaluator:
                 'completion_rate': completion_rate,
                 'avg_wait_time': avg_wait_time,
                 'robot_utilization': robot_utilization,
-                'total_energy_consumed': metrics['total_energy_consumed'],
+                'total_energy': metrics['total_energy_consumed'],
                 'energy_per_order': energy_per_order,
                 'signal_switch_count': metrics['signal_switch_count'],
                 'avg_traffic_rate': metrics['avg_traffic_rate'],
@@ -269,8 +298,8 @@ class ControllerEvaluator:
             
             # 清理
             # 清理臨時檔案
-            if os.path.exists('netlogo.state'):
-                os.remove('netlogo.state')
+            if os.path.exists(state_file):
+                os.remove(state_file)
             
             return result
             

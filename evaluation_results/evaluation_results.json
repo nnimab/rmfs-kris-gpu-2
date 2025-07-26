@@ -1,0 +1,56 @@
+{
+  "evaluation_config": {
+    "evaluation_ticks": 50000,
+    "num_runs": 3,
+    "timestamp": "2025-07-27_043011"
+  },
+  "results": [
+    {
+      "controller_name": "no_controller",
+      "controller_type": "none",
+      "run_id": 0,
+      "evaluation_ticks": 50000,
+      "warehouse_final_tick": 7499.999999993497,
+      "completed_orders": 189,
+      "total_orders": 212,
+      "completion_rate": 0.8915094339622641,
+      "avg_wait_time": 0.0,
+      "robot_utilization": 0.0,
+      "total_energy": 44692.56044999995,
+      "energy_per_order": 236.46857380952358,
+      "signal_switch_count": 0,
+      "avg_traffic_rate": 0.0,
+      "execution_time": 3381.5595078468323,
+      "avg_tick_time": 0.06746064883708953,
+      "timestamp": "2025-07-27T04:28:36.790015",
+      "controller_metadata": {
+        "controller_type": "none"
+      }
+    },
+    {
+      "controller_name": "no_controller",
+      "controller_type": "none",
+      "run_id": 1,
+      "evaluation_ticks": 50000,
+      "warehouse_final_tick": 211.65000000000515,
+      "completed_orders": 9,
+      "total_orders": 15,
+      "completion_rate": 0.6,
+      "avg_wait_time": 0.0,
+      "robot_utilization": 0.0,
+      "total_energy": 1065.1619649999989,
+      "energy_per_order": 118.35132944444432,
+      "signal_switch_count": 0,
+      "avg_traffic_rate": 0.0,
+      "execution_time": 94.30680179595947,
+      "avg_tick_time": 0.06496367329490008,
+      "timestamp": "2025-07-27T04:30:11.098795",
+      "controller_metadata": {
+        "controller_type": "none"
+      }
+    }
+  ],
+  "controllers_evaluated": [
+    "no_controller"
+  ]
+}

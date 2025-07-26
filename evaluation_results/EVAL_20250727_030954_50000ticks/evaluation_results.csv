@@ -1,0 +1,2 @@
+controller_name,controller_type,run_id,evaluation_ticks,warehouse_final_tick,completed_orders,total_orders,completion_rate,avg_wait_time,robot_utilization,total_energy,energy_per_order,signal_switch_count,avg_traffic_rate,execution_time,avg_tick_time,timestamp,controller_metadata
+no_controller,none,0,50000,1430.550000000137,39,51,0.7647058823529411,0.0,0.0,8136.83842000001,208.63688256410282,0,0.0,587.7304737567902,0.06091536787604466,2025-07-27T03:19:42.299951,{'controller_type': 'none'}

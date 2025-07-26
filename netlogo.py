@@ -13,6 +13,24 @@ from evaluation.performance_report_generator import generate_performance_report_
 # 創建一個全局變量，用於存儲PerformanceReportGenerator實例
 performance_reporter = None
 
+def get_state_filename():
+    """
+    根據環境變數生成唯一的狀態檔案名稱
+    優先順序：
+    1. 環境變數 SIMULATION_ID (例如: SIMULATION_ID=exp1 -> states/netlogo_exp1.state)
+    2. 預設使用 'states/netlogo.state'
+    所有狀態檔案都存放在 states/ 資料夾中
+    """
+    # 確保 states 資料夾存在
+    state_dir = 'states'
+    if not os.path.exists(state_dir):
+        os.makedirs(state_dir)
+    
+    sim_id = os.environ.get('SIMULATION_ID', '')
+    if sim_id:
+        return os.path.join(state_dir, f'netlogo_{sim_id}.state')
+    return os.path.join(state_dir, 'netlogo.state')
+
 def setup():
     try:
         # Initialize the simulation warehouse
@@ -35,7 +53,8 @@ def setup():
         warehouse.initWarehouse();
 
         # Save the warehouse state for future ticks
-        with open('netlogo.state', 'wb') as config_dictionary_file:
+        state_file = get_state_filename()
+        with open(state_file, 'wb') as config_dictionary_file:
             pickle.dump(warehouse, config_dictionary_file)
 
         return next_result
@@ -52,7 +71,8 @@ def tick():
         # print("========tick========")
 
         # Load the simulation state
-        with open('netlogo.state', 'rb') as file:
+        state_file = get_state_filename()
+        with open(state_file, 'rb') as file:
             warehouse: Warehouse = pickle.load(file)
         # print("DEBUG: State loaded.")
 
@@ -93,7 +113,7 @@ def tick():
 
         # print("DEBUG: Saving state...")
 
-        with open('netlogo.state', 'wb') as config_dictionary_file:
+        with open(state_file, 'wb') as config_dictionary_file:
             pickle.dump(warehouse, config_dictionary_file)
         # print("DEBUG: State saved.")
 
@@ -137,7 +157,8 @@ def set_traffic_controller(controller_type, **kwargs):
     """
     try:
         # 加載模擬狀態
-        with open('netlogo.state', 'rb') as file:
+        state_file = get_state_filename()
+        with open(state_file, 'rb') as file:
             warehouse: Warehouse = pickle.load(file)
         
         # 設置交通控制器
@@ -153,7 +174,7 @@ def set_traffic_controller(controller_type, **kwargs):
             print(f"Updated performance reporter controller name to: {controller_type}")
         
         # 保存模擬狀態
-        with open('netlogo.state', 'wb') as config_dictionary_file:
+        with open(state_file, 'wb') as config_dictionary_file:
             pickle.dump(warehouse, config_dictionary_file)
             
         print(f"交通控制器已設置為: {controller_type}")
@@ -215,7 +236,7 @@ def set_dqn_controller(exploration_rate=0.6, load_model_tick=None):
     # 如果設置成功且指定了模型，嘗試加載模型
     if result and load_model_tick is not None:
         try:
-            with open('netlogo.state', 'rb') as file:
+            with open(state_file, 'rb') as file:
                 warehouse: Warehouse = pickle.load(file)
                 
             # 嘗試加載特定ticks的模型
@@ -223,7 +244,7 @@ def set_dqn_controller(exploration_rate=0.6, load_model_tick=None):
                 load_success = warehouse.intersection_manager.controller.load_model(tick=load_model_tick)
                 
                 # 保存更新後的狀態
-                with open('netlogo.state', 'wb') as file:
+                with open(state_file, 'wb') as file:
                     pickle.dump(warehouse, file)
                     
                 print(f"DQN model loading {'successful' if load_success else 'failed'} for tick {load_model_tick}")
@@ -253,7 +274,7 @@ def set_nerl_controller(exploration_rate=0.6, load_model_tick=None):
     # 如果設置成功且指定了模型，嘗試加載模型
     if result and load_model_tick is not None:
         try:
-            with open('netlogo.state', 'rb') as file:
+            with open(state_file, 'rb') as file:
                 warehouse: Warehouse = pickle.load(file)
                 
             # 嘗試加載特定ticks的模型
@@ -261,7 +282,7 @@ def set_nerl_controller(exploration_rate=0.6, load_model_tick=None):
                 load_success = warehouse.intersection_manager.controller.load_model(tick=load_model_tick)
                 
                 # 保存更新後的狀態
-                with open('netlogo.state', 'wb') as file:
+                with open(state_file, 'wb') as file:
                     pickle.dump(warehouse, file)
                     
                 print(f"NERL model loading {'successful' if load_success else 'failed'} for tick {load_model_tick}")
@@ -345,7 +366,8 @@ def set_nerl_training_mode(is_training=True):
     """
     try:
         # 加載模擬狀態
-        with open('netlogo.state', 'rb') as file:
+        state_file = get_state_filename()
+        with open(state_file, 'rb') as file:
             warehouse: Warehouse = pickle.load(file)
         
         # 檢查當前控制器是否為NERL
@@ -359,7 +381,7 @@ def set_nerl_training_mode(is_training=True):
             controller.set_training_mode(is_training)
             
             # 保存更新後的狀態
-            with open('netlogo.state', 'wb') as file:
+            with open(state_file, 'wb') as file:
                 pickle.dump(warehouse, file)
                 
             mode_str = "訓練" if is_training else "評估"
@@ -388,7 +410,8 @@ def set_dqn_training_mode(is_training=True):
     """
     try:
         # 加載模擬狀態
-        with open('netlogo.state', 'rb') as file:
+        state_file = get_state_filename()
+        with open(state_file, 'rb') as file:
             warehouse: Warehouse = pickle.load(file)
         
         # 檢查當前控制器是否為DQN
@@ -402,7 +425,7 @@ def set_dqn_training_mode(is_training=True):
             controller.set_training_mode(is_training)
             
             # 保存更新後的狀態
-            with open('netlogo.state', 'wb') as file:
+            with open(state_file, 'wb') as file:
                 pickle.dump(warehouse, file)
                 
             mode_str = "training" if is_training else "evaluation"
@@ -422,7 +445,8 @@ def get_all_intersections():
     """獲取所有路口的位置信息"""
     try:
         # 加載模擬狀態
-        with open('netlogo.state', 'rb') as file:
+        state_file = get_state_filename()
+        with open(state_file, 'rb') as file:
             warehouse: Warehouse = pickle.load(file)
         
         # 收集所有路口的坐標
@@ -450,7 +474,8 @@ def generate_report():
     """
     try:
         # 加載模擬狀態
-        with open('netlogo.state', 'rb') as file:
+        state_file = get_state_filename()
+        with open(state_file, 'rb') as file:
             warehouse: Warehouse = pickle.load(file)
         
         # 確保使用全局的performance_reporter
