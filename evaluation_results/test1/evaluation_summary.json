@@ -1,10 +1,10 @@
 {
-  "timestamp": "2025-07-27_050008",
+  "timestamp": "2025-07-27_050648",
   "evaluation_ticks": 2000,
   "num_runs": 3,
   "controllers_evaluated": [
     "time_based"
   ],
-  "total_runs_completed": 3,
-  "interrupted": false
+  "total_runs_completed": 1,
+  "interrupted": true
 }

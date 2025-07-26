@@ -334,10 +334,11 @@ run_evaluation() {
     # 詢問運行模式
     echo -e "${YELLOW}選擇評估模式:${NC}"
     echo -e "  [1] 單一會話模式 (所有模型在同一個 screen 會話中評估)"
-    echo -e "  [2] 多會話模式 (每個模型獨立的 screen 會話)"
+    echo -e "  [2] 多會話模式 (每個模型獨立的 screen 會話，每個會話跑多次)"
+    echo -e "  [3] 混合模式 (每個模型一個會話，會話內依序執行多次) ${GREEN}[推薦]${NC}"
     echo ""
-    read -p "請選擇 [1-2] (預設: 1): " eval_mode
-    eval_mode=${eval_mode:-1}
+    read -p "請選擇 [1-3] (預設: 3): " eval_mode
+    eval_mode=${eval_mode:-3}
     
     if [ "$eval_mode" = "1" ]; then
         # 原本的單一會話模式
@@ -345,6 +346,9 @@ run_evaluation() {
     elif [ "$eval_mode" = "2" ]; then
         # 新的多會話模式
         run_multi_session_evaluation
+    elif [ "$eval_mode" = "3" ]; then
+        # 混合模式
+        run_hybrid_evaluation
     else
         echo -e "${RED}無效的選擇${NC}"
         return 1
@@ -768,13 +772,13 @@ show_running_evaluations() {
     echo ""
     
     # 檢查所有 rmfs_ 開頭的 screen 會話（包括新格式）
-    sessions=$(screen -ls | grep -E "rmfs_(eval|time_based|queue_based|dqn|nerl)" | wc -l)
+    sessions=$(screen -ls | grep -E "rmfs_(eval|time_based|queue_based|dqn|nerl|batch|hybrid)" | wc -l)
     if [ $sessions -eq 0 ]; then
         echo -e "${YELLOW}  無正在運行的評估任務${NC}"
     else
         echo -e "${GREEN}  找到 $sessions 個正在運行的評估任務:${NC}"
         local index=1
-        screen -ls | grep -E "rmfs_(eval|time_based|queue_based|dqn|nerl)" | while read line; do
+        screen -ls | grep -E "rmfs_(eval|time_based|queue_based|dqn|nerl|batch|hybrid)" | while read line; do
             session_name=$(echo $line | awk '{print $1}')
             
             # 解析會話名稱以獲取資訊
@@ -804,6 +808,15 @@ show_running_evaluations() {
                 elif [[ "$session_name" == *"rmfs_queue_based_"* ]]; then
                     echo -e "${GREEN}  [$index] $session_name${NC}"
                     echo -e "${PURPLE}      模型: Queue-based Controller${NC}"
+                elif [[ "$session_name" == *"rmfs_hybrid_"* ]]; then
+                    # 混合模式會話
+                    controller_info=$(echo $session_name | sed 's/.*rmfs_hybrid_//' | sed 's/_[0-9]\{8\}_[0-9]\{6\}$//')
+                    echo -e "${GREEN}  [$index] $session_name${NC}"
+                    echo -e "${CYAN}      模式: 混合模式 - ${controller_info}${NC}"
+                elif [[ "$session_name" == *"rmfs_batch_"* ]]; then
+                    # 批次模式會話
+                    echo -e "${GREEN}  [$index] $session_name${NC}"
+                    echo -e "${CYAN}      模式: 批次模式${NC}"
                 fi
             fi
             
@@ -860,7 +873,7 @@ view_running_evaluation() {
     echo ""
     
     # 檢查 screen 會話（包括新舊格式）
-    sessions=$(screen -ls | grep -E "rmfs_(eval|time_based|queue_based|dqn|nerl)" | awk '{print $1}')
+    sessions=$(screen -ls | grep -E "rmfs_(eval|time_based|queue_based|dqn|nerl|batch|hybrid)" | awk '{print $1}')
     if [ -z "$sessions" ]; then
         echo -e "${YELLOW}無正在運行的評估任務${NC}"
         return 1
@@ -969,7 +982,7 @@ stop_evaluation_task() {
     
     # 檢查所有 RMFS 相關的 screen 會話（包括新舊格式）
     # 注意：screen -ls 輸出格式可能包含 PID.session_name 或其他資訊
-    local session_list=$(screen -ls | grep -E "rmfs_(eval|time_based|queue_based|dqn|nerl)")
+    local session_list=$(screen -ls | grep -E "rmfs_(eval|time_based|queue_based|dqn|nerl|batch|hybrid)")
     
     if [ -z "$session_list" ]; then
         echo -e "${YELLOW}  無正在運行的評估任務${NC}"
@@ -1238,6 +1251,177 @@ aggregate_multi_session_results() {
     else
         echo -e "${RED}❌ 聚合失敗${NC}"
     fi
+}
+
+# 混合模式評估（每個控制器一個會話，會話內依序執行多次）
+run_hybrid_evaluation() {
+    echo -e "${BLUE}混合模式：為每個控制器創建一個 screen 會話，會話內依序執行 ${NUM_RUNS} 次${NC}"
+    echo ""
+    
+    # 基礎時間戳
+    base_timestamp=$(date +%Y%m%d_%H%M%S)
+    base_output_dir="result/evaluations/BATCH_${base_timestamp}"
+    
+    # 創建批次目錄
+    mkdir -p "$base_output_dir"
+    
+    echo -e "${CYAN}將為 ${#SELECTED_CONTROLLERS[@]} 個控制器各創建一個會話${NC}"
+    echo -e "${CYAN}每個會話內依序執行 ${NUM_RUNS} 次評估${NC}"
+    echo -e "${CYAN}批次目錄: $base_output_dir${NC}"
+    echo ""
+    
+    # 詢問最大並行數
+    local max_parallel=8
+    read -p "最大並行會話數 (預設 8，建議不超過 CPU 核心數): " input_parallel
+    if [ -n "$input_parallel" ]; then
+        max_parallel=$input_parallel
+    fi
+    echo -e "${GREEN}最大並行數設為: $max_parallel${NC}"
+    echo ""
+    
+    # 為每個控制器創建一個會話
+    local session_count=0
+    for i in "${!SELECTED_CONTROLLERS[@]}"; do
+        controller="${SELECTED_CONTROLLERS[$i]}"
+        
+        # 等待直到當前會話數低於最大並行數
+        while true; do
+            current_sessions=$(screen -ls | grep -c "rmfs_hybrid_" || true)
+            if [ $current_sessions -lt $max_parallel ]; then
+                break
+            fi
+            echo -e "${YELLOW}當前有 $current_sessions 個會話運行中，等待空閒位置...${NC}"
+            sleep 5
+        done
+        
+        # 生成控制器的顯示名稱和目錄名稱
+        if [ "$controller" = "none" ]; then
+            controller_dir="no_controller"
+            display_name="無控制器模式"
+        elif [[ "$controller" == *":"* ]]; then
+            # AI 模型
+            model_type=$(echo "$controller" | cut -d':' -f1)
+            model_path=$(echo "$controller" | cut -d':' -f2-)
+            model_name=$(basename "$model_path" .pth)
+            clean_name=$(echo "$model_name" | sed 's/[^a-zA-Z0-9_-]/_/g' | cut -c1-30)
+            controller_dir="${model_type}_${clean_name}"
+            display_name="${model_type}: ${model_name}"
+        else
+            # 傳統控制器
+            controller_dir="$controller"
+            display_name="$controller"
+        fi
+        
+        # 為該控制器創建子目錄
+        controller_output_dir="${base_output_dir}/${controller_dir}"
+        mkdir -p "$controller_output_dir"
+        
+        # 生成會話名稱
+        screen_session="rmfs_hybrid_${controller_dir}_${base_timestamp}"
+        screen_session=$(echo "$screen_session" | cut -c1-50)
+        
+        echo -e "${GREEN}啟動控制器: $display_name${NC}"
+        
+        # 創建 screen 會話，在會話內執行多次運行
+        screen -dmS "$screen_session" bash -c "
+            cd $PROJECT_DIR
+            source .venv/bin/activate
+            export PYTHONPATH=$PROJECT_DIR:\$PYTHONPATH
+            export LANG=zh_TW.UTF-8
+            export LC_ALL=zh_TW.UTF-8
+            
+            echo '==============================================='
+            echo 'RMFS 評估任務 - 混合模式'
+            echo \"控制器: $display_name\"
+            echo \"會話名稱: $screen_session\"
+            echo \"總運行次數: $NUM_RUNS\"
+            echo \"開始時間: \$(date)\"
+            echo '==============================================='
+            echo ''
+            
+            # 在會話內依序執行多次運行
+            for run_num in \$(seq 1 $NUM_RUNS); do
+                echo ''
+                echo '-----------------------------------------------'
+                echo \"開始運行 \$run_num/$NUM_RUNS\"
+                echo \"時間: \$(date)\"
+                echo '-----------------------------------------------'
+                
+                # 為每次運行創建唯一的輸出目錄
+                output_dir=\"${controller_output_dir}/RUN_\${run_num}\"
+                mkdir -p \"\$output_dir\"
+                
+                # 設置唯一的 SIMULATION_ID
+                export SIMULATION_ID=\"hybrid_${base_timestamp}_${i}_run\${run_num}\"
+                
+                # 構建評估命令
+                eval_command=\"python evaluate.py\"
+                eval_command=\"\$eval_command --eval_ticks $EVAL_TICKS\"
+                eval_command=\"\$eval_command --num_runs 1\"
+                eval_command=\"\$eval_command --output_dir \$output_dir\"
+                eval_command=\"\$eval_command --seed \$((42 + ($i * $NUM_RUNS) + run_num - 1))\"
+                
+                # 添加控制器參數
+                if [ \"$controller\" != \"none\" ]; then
+                    eval_command=\"\$eval_command --controllers $controller\"
+                fi
+                
+                echo \"執行命令: \$eval_command\"
+                echo ''
+                
+                # 執行評估
+                \$eval_command
+                
+                if [ \$? -eq 0 ]; then
+                    echo ''
+                    echo \"✅ 運行 \$run_num 完成！\"
+                    echo \"結果保存在: \$output_dir\"
+                else
+                    echo ''
+                    echo \"❌ 運行 \$run_num 失敗！\"
+                fi
+                
+                # 如果不是最後一次運行，稍微暫停
+                if [ \$run_num -lt $NUM_RUNS ]; then
+                    echo ''
+                    echo \"等待 3 秒後開始下一次運行...\"
+                    sleep 3
+                fi
+            done
+            
+            echo ''
+            echo '==============================================='
+            echo \"所有運行完成！\"
+            echo \"控制器: $display_name\"
+            echo \"完成時間: \$(date)\"
+            echo \"結果目錄: $controller_output_dir\"
+            echo '==============================================='
+            echo ''
+            echo '按任意鍵結束會話...'
+            read
+        "
+        
+        if [ $? -eq 0 ]; then
+            echo -e "  ${CYAN}✓ 會話已啟動: $screen_session${NC}"
+            ((session_count++))
+        else
+            echo -e "  ${RED}✗ 無法啟動會話${NC}"
+        fi
+        
+        # 在啟動下一個會話前稍微暫停
+        sleep 2
+    done
+    
+    echo ""
+    echo -e "${GREEN}✅ 已啟動 $session_count 個評估會話${NC}"
+    echo -e "${BLUE}批次結果將保存在: $base_output_dir${NC}"
+    echo ""
+    echo -e "${BLUE}提示:${NC}"
+    echo -e "${BLUE}  • 使用 'screen -ls' 查看所有會話${NC}"
+    echo -e "${BLUE}  • 使用 'screen -r <session_name>' 連接到特定會話${NC}"
+    echo -e "${BLUE}  • 使用選項 [3] 查看和連接到各個會話${NC}"
+    echo -e "${BLUE}  • 所有運行完成後，使用以下命令進行聚合分析：${NC}"
+    echo -e "${CYAN}    python analysis/paper_analyzer.py $base_output_dir${NC}"
 }
 
 # 主選單
