@@ -997,6 +997,12 @@ class Robot(Object):
             if self.DEBUG_LEVEL >= 2:
                 logger.debug(f"Robot {self.robotName()} became active at tick {current_tick}")
         
+        # 如果是第一次設置非閒置狀態（初始化時），也要記錄時間
+        if self.last_state_change_time == 0 and new_state != 'idle':
+            self.last_state_change_time = current_tick
+            if self.DEBUG_LEVEL >= 2:
+                logger.debug(f"Robot {self.robotName()} initialized as active at tick {current_tick}")
+        
         # V3.0 里程碑追蹤：當狀態變為 returning_pod 時，設置第一個返回路口
         if old_state != 'returning_pod' and new_state == 'returning_pod':
             try:
@@ -1009,3 +1015,16 @@ class Robot(Object):
         
         # 更新當前狀態
         self.current_state = new_state
+
+    def get_current_active_time(self, current_tick):
+        """
+        獲取當前的總活動時間（包括正在進行的活動）
+        用於評估時正確計算機器人利用率
+        """
+        total_time = self.total_active_time
+        
+        # 如果機器人當前處於非閒置狀態，加上從上次狀態變化到現在的時間
+        if self.current_state != 'idle' and self.last_state_change_time > 0:
+            total_time += current_tick - self.last_state_change_time
+            
+        return total_time

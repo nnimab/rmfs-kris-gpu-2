@@ -25,7 +25,7 @@ def signal_handler(sig, frame):
     """處理中斷信號"""
     global interrupted
     interrupted = True
-    print("\n\n⚠️  收到中斷信號，正在安全停止評估...")
+    print("[WARNING] 收到中斷信號，正在安全停止評估...")
     print("請稍候，正在保存已完成的結果...")
     # 不立即退出，讓程序有機會保存結果
 
@@ -231,6 +231,10 @@ class ControllerEvaluator:
                     current_completed = len(warehouse.order_manager.finished_orders)
                     current_total = len(warehouse.order_manager.orders)
                     
+                    # 容量測試模式下，輸出到 stdout 供監控器使用
+                    if os.environ.get('CAPACITY_TEST_MODE') == '1' and tick % 100 == 0:
+                        print(f"Tick: {tick}/{self.evaluation_ticks} | 完成訂單: {current_completed}/{current_total} | 機器人: {len(warehouse.robot_manager.robots)}", flush=True)
+                    
                     # 更新累計統計
                     metrics['completed_orders'] = current_completed
                     metrics['total_orders'] = current_total
@@ -241,14 +245,37 @@ class ControllerEvaluator:
                     
                     metrics['total_robots'] = total_robots
                     
+                    # 收集機器人活動時間
+                    total_active_time = 0
+                    current_tick = warehouse._tick
+                    for robot in warehouse.robot_manager.robots:
+                        if hasattr(robot, 'get_current_active_time'):
+                            # 使用新方法獲取包含當前活動的總時間
+                            total_active_time += robot.get_current_active_time(current_tick)
+                        elif hasattr(robot, 'total_active_time'):
+                            # 向後相容：如果沒有新方法，使用舊屬性
+                            total_active_time += robot.total_active_time
+                    metrics['total_robot_active_time'] = total_active_time
+                    
                     # 收集等待時間
-                    # 計算所有機器人在所有路口的總等待時間
-                    total_wait = 0
+                    # 收集所有機器人的等待事件（與訓練保持一致）
+                    if 'all_wait_events' not in metrics:
+                        metrics['all_wait_events'] = []
+                    
                     for robot in warehouse.robot_manager.robots:
                         if hasattr(robot, 'intersection_wait_time'):
-                            total_wait += sum(robot.intersection_wait_time.values())
-                    # 累加總等待時間，而不是平均值
-                    metrics['total_wait_time'] = total_wait
+                            for intersection_id, wait_time in robot.intersection_wait_time.items():
+                                if wait_time > 0:
+                                    metrics['all_wait_events'].append(wait_time)
+                    
+                    # 累加總等待時間（用於後續計算）
+                    if 'total_wait_time' not in metrics:
+                        metrics['total_wait_time'] = 0
+                    
+                    current_tick_wait = sum(sum(robot.intersection_wait_time.values()) 
+                                          for robot in warehouse.robot_manager.robots 
+                                          if hasattr(robot, 'intersection_wait_time'))
+                    metrics['total_wait_time'] += current_tick_wait
                     
                     # 收集能源消耗
                     # 使用 warehouse.total_energy 而非機器人累計，以保持與歷史評估的一致性
@@ -277,6 +304,9 @@ class ControllerEvaluator:
                     
                     # 記錄進度
                     if tick % 1000 == 0:
+                        # 容量測試模式下，同時輸出到 stdout 供監控器讀取
+                        if os.environ.get('CAPACITY_TEST_MODE') == '1':
+                            print(f"進度: {tick}/{self.evaluation_ticks} ticks, 完成訂單: {current_completed}/{current_total}", flush=True)
                         self.logger.info(f"  進度: {tick}/{self.evaluation_ticks} ticks, "
                                        f"完成訂單: {current_completed}/{current_total}")
             
@@ -286,8 +316,14 @@ class ControllerEvaluator:
             
             # 計算衍生指標
             completion_rate = metrics['completed_orders'] / metrics['total_orders'] if metrics['total_orders'] > 0 else 0
-            # 平均等待時間 = 總等待時間 / (機器人數 * tick數)
-            avg_wait_time = metrics['total_wait_time'] / (metrics['total_robots'] * final_tick) if (metrics['total_robots'] > 0 and final_tick > 0) else 0
+            
+            # 平均等待時間計算（與訓練保持一致）
+            # 使用所有等待事件的平均值，而不是總等待時間除以機器人數×tick數
+            if 'all_wait_events' in metrics and len(metrics['all_wait_events']) > 0:
+                # 與 ai/unified_reward_system.py:546 保持一致
+                avg_wait_time = sum(metrics['all_wait_events']) / len(metrics['all_wait_events'])
+            else:
+                avg_wait_time = 0
             robot_utilization = metrics['total_robot_active_time'] / (final_tick * metrics['total_robots']) if metrics['total_robots'] > 0 else 0
             energy_per_order = metrics['total_energy_consumed'] / metrics['completed_orders'] if metrics['completed_orders'] > 0 else 0
             
@@ -555,11 +591,23 @@ def main():
                        help='啟用併行評估模式')
     parser.add_argument('--seed', type=int, default=42,
                        help='隨機種子')
+    parser.add_argument('--robot-count', type=int, default=20,
+                       help='機器人數量 (預設: 20)')
+    # 為了向後相容，同時支援兩種參數格式
+    parser.add_argument('--ticks', type=int, dest='eval_ticks',
+                       help='評估時長 (ticks) - 與 --eval_ticks 相同')
+    parser.add_argument('--runs', type=int, dest='num_runs',
+                       help='重複運行次數 - 與 --num_runs 相同')
+    parser.add_argument('--output-dir', dest='output_dir',
+                       help='結果輸出目錄 - 與 --output_dir 相同')
     
     args = parser.parse_args()
     
     # 設置隨機種子
     np.random.seed(args.seed)
+    
+    # 設置環境變數以傳遞機器人數量
+    os.environ['ROBOT_COUNT'] = str(args.robot_count)
     
     evaluator = ControllerEvaluator(
         evaluation_ticks=args.eval_ticks,
@@ -573,7 +621,7 @@ def main():
     )
     
     print("\n" + "="*50)
-    print("📊 評估完成！")
+    print("[INFO] 評估完成！")
     print(f"結果保存在: {evaluator.output_dir}")
     print("="*50)
     
