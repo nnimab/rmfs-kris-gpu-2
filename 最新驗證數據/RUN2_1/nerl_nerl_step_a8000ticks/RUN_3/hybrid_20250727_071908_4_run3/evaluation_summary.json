@@ -1,0 +1,10 @@
+{
+  "timestamp": "2025-07-27_090130",
+  "evaluation_ticks": 50000,
+  "num_runs": 1,
+  "controllers_evaluated": [
+    "nerl_nerl_step_a8000ticks"
+  ],
+  "total_runs_completed": 1,
+  "interrupted": false
+}

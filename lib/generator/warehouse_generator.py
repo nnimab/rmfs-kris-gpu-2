@@ -19,7 +19,8 @@ from lib.constant import *
 pods_path = os.path.join(PARENT_DIRECTORY, 'data/output/pods.csv')
 
 def init_robots(warehouse: Warehouse):
-    num_robot = 20 # Number of robots
+    # 從環境變數讀取機器人數量，預設為 20
+    num_robot = int(os.environ.get('ROBOT_COUNT', 20))
     
     robots = []
     x_range = (5,43)

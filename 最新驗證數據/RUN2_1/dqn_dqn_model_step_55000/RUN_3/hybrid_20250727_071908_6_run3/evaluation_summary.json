@@ -1,0 +1,10 @@
+{
+  "timestamp": "2025-07-27_090923",
+  "evaluation_ticks": 50000,
+  "num_runs": 1,
+  "controllers_evaluated": [
+    "dqn_dqn_model_step_55000"
+  ],
+  "total_runs_completed": 1,
+  "interrupted": false
+}

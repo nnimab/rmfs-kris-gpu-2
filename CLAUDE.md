@@ -2,6 +2,36 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 重要：使用 Serena MCP 工具
+
+本專案強烈建議使用 Serena MCP 工具進行程式碼分析與編輯。Serena 提供了符號級的精確編輯和快速的程式碼搜尋功能，能大幅提升開發效率。
+
+### Serena 核心工具使用指南
+
+#### 1. 程式碼分析工具
+- **`mcp__serena__get_symbols_overview`**：獲取檔案或目錄的頂層符號概覽，快速了解程式碼結構
+- **`mcp__serena__find_symbol`**：根據符號路徑尋找特定類別、方法或變數
+- **`mcp__serena__find_referencing_symbols`**：找出引用特定符號的所有位置
+- **`mcp__serena__search_for_pattern`**：使用正則表達式搜尋程式碼模式
+
+#### 2. 程式碼編輯工具
+- **`mcp__serena__replace_symbol_body`**：替換整個符號的內容（如整個方法或類別）
+- **`mcp__serena__insert_before_symbol`**：在符號前插入程式碼（如新增 import）
+- **`mcp__serena__insert_after_symbol`**：在符號後插入程式碼（如新增方法）
+- **`mcp__serena__replace_regex`**：使用正則表達式進行精確的程式碼替換
+
+#### 3. 記憶管理工具
+- **`mcp__serena__write_memory`**：儲存專案相關的重要資訊
+- **`mcp__serena__read_memory`**：讀取之前儲存的專案資訊
+- **`mcp__serena__list_memories`**：列出所有可用的記憶檔案
+
+### Serena 使用最佳實踐
+
+1. **分析前先了解結構**：使用 `get_symbols_overview` 獲取檔案概覽，避免讀取整個檔案
+2. **精確編輯**：優先使用符號級編輯工具，只在需要小範圍修改時使用 regex 替換
+3. **善用記憶系統**：將重要的專案資訊儲存到 Serena 記憶中，避免重複分析
+4. **批量操作**：盡可能批量執行搜尋和分析操作，提升效率
+
 ## 專案概述
 
 這是一個基於 NetLogo 和 Python 的混合式 RMFS（Robotic Mobile Fulfillment System）倉儲自動化研究專案，專注於使用神經進化強化學習（NERL）和深度Q學習（DQN）來優化倉儲中的交通控制系統。
@@ -16,6 +46,217 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 系統使用繁體中文作為主要開發語言（註釋、文檔、用戶交互）
 - 目前在 WSL 環境下運行，終端指令執行由用戶負責
 - NetLogo 需要在 Windows 環境下運行
+
+## Claude 的 sub agent 功能 :SUB AGENTS 協調機制
+
+### 記憶指引
+- 我會給妳我的需求，請依照需求去分配任務給 sub agent 讓他來實作
+- 妳負責分配任務、理解任務以及協調任務
+- 主要目標是確保每個 sub agent 能夠專注於其擅長的領域，並有效協同工作
+
+### SUB AGENTS 協調原則
+- 明確任務劃分
+- 清晰的溝通界面
+- 彈性的工作分配
+- 即時的任務追蹤和回饋
+
+我有的sub agent: 
+
+AI 開發團隊成員職責總覽
+第一階段：專案奠基與規劃
+steering-architect (專案奠基者與文檔架構師)
+核心職責：分析整個專案的程式碼庫，以建立或更新指導所有 AI 行為的核心規則文件 (.ai-rules/)。他是整個團隊工作的「地基」。
+使用時機：當專案剛開始、需要初始化時；或當核心的產品願景、技術棧、或專案結構需要被文件化或更新時。
+主要產出：三個核心指導文件：product.md、tech.md、structure.md。
+strategic-planner (功能規劃師與軟體架構師)
+核心職責：與使用者合作，將模糊的功能想法，轉化為具體的規格、技術設計和一份詳細的、按部就班的開發任務清單。他是從「想法」到「藍圖」的橋樑。
+使用時機：當需要規劃一個新功能；或在寫任何程式碼之前，需要進行需求分析和技術設計時。
+主要產出：一個規格目錄 (specs/<feature-name>/)，內含 requirements.md (需求)、design.md (設計) 和 tasks.md (任務) 三個文件。
+第二階段：執行與交付
+task-executor (精密的軟體工程師)
+核心職責：嚴格遵循 tasks.md 的指示，一次只執行一個、且僅一個開發任務，以外科手術般的精確度編寫或修改程式碼。他是團隊的「主力開發者」。
+使用時機：當規劃階段完成，並且有一份清晰的任務清單 (tasks.md) 等待執行時。
+主要產出：已修改的程式碼文件，以及更新後的 tasks.md (將完成的任務標記為 [x])。
+第三階段：品質保證與維護
+code-reviewer (程式碼品質守門人)
+核心職責：審查由 task-executor 提交的程式碼變更，根據專案規範、程式碼風格和最佳實踐，找出潛在的品質問題、錯誤或安全隱患。它絕不修改程式碼，只提供報告。
+使用時機：當一段程式碼已經完成，需要進行正式的品質審查 (Code Review) 時。
+主要產出：一份結構化的程式碼審查報告 (Markdown 格式)，詳細列出問題點和改進建議。
+refactor-technician (程式碼結構優化師)
+核心職責：專門改善現有程式碼的內部結構、可讀性、性能和維護性，同時保證其外部功能行為完全不變。他是負責清理「技術債」的專家。
+使用時機：當使用者想要清理程式碼、優化效能、或簡化複雜的程式碼邏輯時 (例如簡化 unified_reward_system.py)。
+主要產出：已重構並優化的程式碼文件，並附帶所有測試通過的確認。
+bug-resolver (除錯偵探)
+核心職責：根據錯誤報告、失敗的測試日誌或使用者描述，診斷問題的根本原因，並應用精確的修復程式碼來解決錯誤。
+使用時機：當程式出現非預期行為、測試失敗、或系統崩潰，需要進行除錯 (Debug) 時。
+主要產出：已修復錯誤的程式碼文件，以及一份說明問題根源、修復方法和驗證結果的報告。
+這六個 sub-agent 共同構成了一個完整的軟體開發生命週期，從專案初始化、規劃設計、編碼實現，到最終的審查、重構與除錯，各司其職，協同工作。
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## 重要：使用 Serena MCP 工具
+
+本專案強烈建議使用 Serena MCP 工具進行程式碼分析與編輯。Serena 提供了符號級的精確編輯和快速的程式碼搜尋功能，能大幅提升開發效率。
+
+### Serena 核心工具使用指南
+
+#### 1. 程式碼分析工具
+- **`mcp__serena__get_symbols_overview`**：獲取檔案或目錄的頂層符號概覽，快速了解程式碼結構
+- **`mcp__serena__find_symbol`**：根據符號路徑尋找特定類別、方法或變數
+- **`mcp__serena__find_referencing_symbols`**：找出引用特定符號的所有位置
+- **`mcp__serena__search_for_pattern`**：使用正則表達式搜尋程式碼模式
+
+#### 2. 程式碼編輯工具
+- **`mcp__serena__replace_symbol_body`**：替換整個符號的內容（如整個方法或類別）
+- **`mcp__serena__insert_before_symbol`**：在符號前插入程式碼（如新增 import）
+- **`mcp__serena__insert_after_symbol`**：在符號後插入程式碼（如新增方法）
+- **`mcp__serena__replace_regex`**：使用正則表達式進行精確的程式碼替換
+
+#### 3. 記憶管理工具
+- **`mcp__serena__write_memory`**：儲存專案相關的重要資訊
+- **`mcp__serena__read_memory`**：讀取之前儲存的專案資訊
+- **`mcp__serena__list_memories`**：列出所有可用的記憶檔案
+
+### Serena 使用最佳實踐
+
+1. **分析前先了解結構**：使用 `get_symbols_overview` 獲取檔案概覽，避免讀取整個檔案
+2. **精確編輯**：優先使用符號級編輯工具，只在需要小範圍修改時使用 regex 替換
+3. **善用記憶系統**：將重要的專案資訊儲存到 Serena 記憶中，避免重複分析
+4. **批量操作**：盡可能批量執行搜尋和分析操作，提升效率
+
+## 專案概述
+
+這是一個基於 NetLogo 和 Python 的混合式 RMFS（Robotic Mobile Fulfillment System）倉儲自動化研究專案，專注於使用神經進化強化學習（NERL）和深度Q學習（DQN）來優化倉儲中的交通控制系統。
+
+### 核心技術架構
+- **混合架構**：Python 後端邏輯 + NetLogo 前端視覺化模擬
+- **AI 控制器**：4 種交通控制方法（Time-based、Queue-based、DQN、NERL）
+- **強化學習**：PyTorch 實現的深度 Q 網路和神經進化算法
+- **分散式控制**：邏輯分散（每個路口獨立決策）、實例集中（每個路口有自己的控制器實例）
+
+### 開發環境注意事項
+- 系統使用繁體中文作為主要開發語言（註釋、文檔、用戶交互）
+- 目前在 WSL 環境下運行，終端指令執行由用戶負責
+- NetLogo 需要在 Windows 環境下運行
+
+## 專案結構詳細說明
+
+### 1. AI 模組 (`ai/`)
+
+#### 核心控制器
+- **`controllers/dqn_controller.py`** (DQNController)
+  - 深度 Q 學習控制器，使用經驗回放和目標網路
+  - 17 維狀態輸入，6 個動作輸出（含限速控制）
+  - 支援 epsilon-greedy 探索策略
+
+- **`controllers/nerl_controller.py`** (NEController, EvolvableNetwork)
+  - 神經進化控制器，使用遺傳演算法進化神經網路
+  - 支援種群進化、菁英保留、錦標賽選擇
+  - 動作統計追蹤，避免單一動作主導
+
+- **`controllers/queue_based_controller.py`** (QueueBasedController)
+  - 基於隊列長度的動態控制策略
+  - 根據各方向等待機器人數量決定信號
+
+- **`controllers/time_based_controller.py`** (TimeBasedController)
+  - 固定時間間隔切換的基準控制器
+  - 簡單但穩定，作為性能比較基準
+
+#### 獎勵系統
+- **`unified_reward_system.py`** (UnifiedRewardSystem)
+  - 統一的獎勵計算系統，支援多種模式
+  - V7 版本：關鍵路口權重、限速獎勵、訂單完成獎勵
+  - 591 行複雜邏輯，需要簡化重構
+
+- **`reward_helpers.py`**
+  - 獎勵計算輔助函數
+  - 里程碑追蹤、優先級判斷等
+
+#### 其他支援模組
+- **`deep_q_network.py`** (DeepQNetwork)
+  - DQN 的神經網路實現
+  - 3 層 MLP：17→128→64→6
+
+- **`adaptive_normalizer.py`** (AdaptiveNormalizer, TrafficStateNormalizer)
+  - 狀態標準化器，確保輸入在合理範圍
+  - 自適應更新標準化參數
+
+- **`traffic_controller.py`** (TrafficController, TrafficControllerFactory)
+  - 控制器基礎類別和工廠模式實現
+
+### 2. 倉儲世界模組 (`world/`)
+
+#### 實體類別 (`entities/`)
+- **`robot.py`** (Robot): 機器人實體，負責移動、取貨、送貨
+- **`pod.py`** (Pod): 貨架實體，儲存物品
+- **`station.py`** (Station): 工作站（揀貨台）
+- **`intersection.py`** (Intersection): 路口實體，交通控制點
+- **`job.py`** (Job): 任務實體，包含取貨送貨資訊
+- **`order.py`** (Order): 訂單實體
+- **`zone.py`** (Zone): 區域劃分
+- **`area_path.py`** (AreaPath): 路徑區域
+
+#### 管理器類別 (`managers/`)
+- **`intersection_manager.py`** (IntersectionManager): 路口管理，協調交通流
+- **`robot_manager.py`** (RobotManager): 機器人調度管理
+- **`pod_manager.py`** (PodManager): 貨架管理
+- **`order_manager.py`** (OrderManager): 訂單處理管理
+- **`job_manager.py`** (JobManager): 任務分配管理
+- **`station_manager.py`** (StationManager): 工作站管理
+- **`zone_manager.py`** (ZoneManager): 區域管理
+- **`area_path_manager.py`** (AreaPathManager): 路徑管理
+
+#### 核心倉儲類別
+- **`warehouse.py`** (Warehouse)
+  - 整合所有管理器的主要倉儲類別
+  - CSV I/O 優化：批量處理、進程隔離
+  - 負責整體模擬循環
+
+- **`speed_limit_manager.py`** (SpeedLimitManager)
+  - V7 新增：走廊級限速管理
+  - 支援水平/垂直走廊獨立控制
+
+### 3. 介面與通訊 (`lib/`)
+
+#### NetLogo 介面
+- **`netlogo_connector.py`** (NetLogoConnector)
+  - Python 與 NetLogo 的通訊橋樑
+  - 使用 pyNetLogo 套件
+
+- **`netlogo.py`**
+  - NetLogo 指令包裝器
+  - 提供高階操作介面
+
+#### 資料產生器 (`generator/`)
+- **`config_generator.py`**: 配置檔產生
+- **`data_generator.py`**: 測試資料產生
+- **`warehouse_generator.py`**: 倉儲佈局產生
+- **`network_generator.py`**: 網路拓撲產生
+
+### 4. 實驗管理工具 (`experiment_tools/`)
+
+- **`simple_experiment_manager.py`**: 簡潔的實驗管理介面
+- **`config_manager.py`**: 實驗配置管理
+- **`workflow_runner.py`**: 工作流程執行器
+- **`result_analyzer.py`**: 結果分析工具
+- **`checkpoint_manager.py`**: 檢查點管理
+
+### 5. 主要執行檔案
+
+- **`train.py`**: AI 模型訓練主程式
+  - 支援 DQN 和 NERL 訓練
+  - 多種獎勵模式選擇
+  - 訓練進度追蹤與儲存
+
+- **`evaluate.py`**: 統一評估框架
+  - 比較所有控制器性能
+  - 產生評估報告
+
+- **`simple_experiment.py`**: 簡化的實驗執行介面
+
+- **`visualization_generator.py`**: 視覺化圖表產生
+
+- **`check_system.py`**: 系統完整性檢查
 
 ## 常用開發命令
 
@@ -34,11 +275,6 @@ python train.py --agent dqn --reward_mode global --episodes 100 --ticks 10000
 # NERL 訓練（兩種獎勵模式）
 python train.py --agent nerl --reward_mode step --generations 50 --population 20 --eval_ticks 2000
 python train.py --agent nerl --reward_mode global --generations 50 --population 20 --eval_ticks 2000
-
-# V6.0: Step 獎勵已自動改進（結合絕對值與相對改善）
-# 直接使用 step 模式即可獲得改進的混合式獎勵
-python train.py --agent nerl --reward_mode step --generations 50 --population 20 --eval_ticks 2000
-python train.py --agent dqn --reward_mode step --episodes 100 --ticks 10000
 
 # 訓練時啟動 NetLogo 視覺化
 python train.py --agent [nerl/dqn] --netlogo
@@ -65,57 +301,23 @@ python simple_experiment.py
 python check_system.py
 ```
 
-## 高階架構說明
+## 核心問題與改進方向
 
-### 1. 交通控制系統架構
-系統採用分層設計，實現了邏輯分散、實例集中的控制模式：
+### 1. 獎勵函數複雜度問題
+- **現況**：`unified_reward_system.py` 有 591 行，混合 V3/V6/V7 版本
+- **建議**：模組化重構，分離不同版本，簡化到 50-100 行
 
-- **IntersectionManager**：每個路口的管理器，負責協調該路口的交通流
-- **Traffic Controllers**：4 種不同的控制策略
-  - Time-based：固定時間切換信號燈
-  - Queue-based：根據隊列長度動態調整
-  - DQN：使用深度 Q 學習的智能控制
-  - NERL：使用神經進化的智能控制
+### 2. 資料收集不一致
+- **現況**：訓練和評估使用不同的資料收集機制
+- **建議**：統一資料收集介面，確保訓練與驗證一致性
 
-### 2. 強化學習系統
+### 3. CSV I/O 效能
+- **現況**：已實施批量寫入和進程隔離優化
+- **建議**：考慮使用更高效的資料格式（如 HDF5）
 
-#### DQN 控制器
-- **狀態空間**：8 維標準化狀態（方向、等待時間、隊列長度、優先級比例等）
-- **動作空間**：3 個動作（保持、切換到水平、切換到垂直）
-- **獎勵函數**：統一獎勵系統，考慮等待時間減少、能源消耗、停止-前進次數、通過機器人數
-- **神經網路**：3 層 MLP（17→128→64→3）- 2025/07/20 增強架構
-
-#### NERL 控制器
-- **進化機制**：種群大小 20（建議），菁英保留比例 0.2，錦標賽選擇
-- **適應度函數**：基於累積獎勵的平均值
-- **進化間隔**：每 15 ticks 進化一次
-- **網路架構**：與 DQN 相同的 3 層 MLP（17→128→64→3）
-
-### 3. 統一獎勵系統
-
-#### Step 模式獎勵（原始版本）
-- 通過獎勵：根據機器人優先級 (+1.0/+0.7/+0.5)
-- 等待成本：根據等待機器人優先級 (-0.05/-0.02/-0.01)
-- 切換懲罰：-0.1（如果切換方向）
-
-#### Global 模式獎勵
-- 公式：R = (完成訂單數 × 200) / (能源成本 + 時間成本 + 溢出懲罰)
-- 無溢出獎勵：+5.0（如果沒有排隊溢出）
-
-#### V6.0 改進的 Step 獎勵（取代原始版本）
-- 公式：R_final = 0.5 × R_current + 0.5 × R_improvement
-- R_current：原始 Step 獎勵（絕對值）
-- R_improvement：相對改善獎勵
-  - Rw (40%)：等待時間是否改善
-  - Ra (20%)：是否切換信號
-  - Re (20%)：能源消耗是否改善
-  - Rq (20%)：排隊長度是否改善
-
-### 4. 倉儲模擬系統
-- **實體管理**：Robot、Pod、Station、Intersection 等
-- **訂單系統**：支援正常訂單和積壓訂單模式
-- **能源模型**：基於物理的能源消耗計算
-- **性能指標**：訂單完成率、平均等待時間、能源效率等
+### 4. 模型版本管理
+- **現況**：模型檔案混雜，版本控制不清
+- **建議**：建立清晰的模型版本管理系統
 
 ## 關鍵文件路徑
 
@@ -128,7 +330,7 @@ python check_system.py
 ### AI 控制器實現
 - `ai/controllers/dqn_controller.py`：DQN 控制器
 - `ai/controllers/nerl_controller.py`：NERL 控制器
-- `ai/unified_reward_system.py`：統一獎勵系統
+- `ai/unified_reward_system.py`：統一獎勵系統（需重構）
 - `ai/adaptive_normalizer.py`：狀態標準化器
 
 ### 實驗管理工具
@@ -165,109 +367,29 @@ python check_system.py
 3. **路徑問題**：在 WSL 環境下注意 Windows 和 Linux 路徑差異
 4. **並行執行**：實驗管理系統支援多線程，注意系統資源
 5. **繁體中文**：所有用戶交互、註釋和文檔保持繁體中文
+6. **Serena 優先**：優先使用 Serena MCP 工具進行程式碼分析和編輯
 
-## 2025/07/20 更新記錄
+## 版本更新記錄
 
-### DQN 訓練數據記錄增強
-- 新增 `training_history.json` 自動記錄訓練過程
-- 每 500 步保存檢查點（epsilon、loss、Q值、完成率）
-- 每 1000 步保存 episode 總結（動作分布、系統指標）
-- 新增 `dqn_training_visualizer.py` 用於訓練曲線視覺化
+### 2025/07/20 更新
+- DQN 訓練數據記錄增強
+- 神經網路架構增強（17→128→64→3）
+- NERL 訓練參數優化
+- 修復統計數據收集問題
 
-### 神經網路架構增強
-- 原架構：17→64→32→3（3,331 參數）
-- 新架構：17→128→64→3（11,011 參數）
-- 提供更強的表達能力，適合學習複雜交通模式
+### 2025/07/21 - V7.0 系統重大更新
+- 關鍵路口權重系統
+- 限速控制系統（6 動作空間）
+- 走廊級限速設計
+- 獎勵系統調整（V7.1）
 
-### NERL 訓練參數優化
-- 族群大小：10 → 20（避免過早收斂）
-- 並行 workers：根據硬體調整（建議 8-15）
-- 評估 ticks：3000（平衡訓練時間與評估品質）
+### 2025/07/21 晚上更新
+- 修復 DQN 死鎖問題
+- 修復機器人直衝揀貨台 Bug
+- 優化機器人數量（30→20）
+- 修復 NetLogo 除錯訊息問題
 
-### 修復問題
-- 修正 NERL `signal_switch_count` 記錄欄位名稱
-- 統一 DQN/NERL 動作編碼（1=水平，2=垂直）
-
-## 2025/07/20 晚上更新 - 交通統計收集問題修復
-
-### 發現的問題
-訓練結果顯示所有交通統計都是 0：
-- `avg_wait_time = 0`
-- `signal_switch_count = 0`
-- `total_stop_go_events = 0`
-- `avg_traffic_rate = 0`
-
-### 問題根源
-1. **NERL/DQN 訓練缺少統計更新**：訓練過程沒有調用 `update_system_metrics()`
-2. **方法名稱錯誤**：`unified_reward_system.py` 尋找 `calculateAverageFlow()` 但實際方法是 `getAverageTrafficRate()`
-3. **evaluate.py 缺少指標收集**：沒有收集 `signal_switch_count` 和 `avg_traffic_rate`
-
-### 已修復
-1. ✅ `ai/unified_reward_system.py:569` - 修正方法名稱為 `getAverageTrafficRate()`
-2. ✅ `train.py:157-160` - NERL 訓練加入 `update_system_metrics()` 和 `update_episode_metrics()`
-3. ✅ `train.py:661-665` - DQN 訓練加入相同的統計更新
-4. ✅ `evaluate.py:213-255` - 加入 signal_switch_count 和 avg_traffic_rate 的收集邏輯
-
-### 重要提醒
-- 重新訓練前請確保這些修改都已生效
-- 現在訓練結果應該會正確顯示所有交通統計數據
-
-## 2025/07/21 - V7.0 系統重大更新
-
-### V7.0 核心改進
-1. **關鍵路口權重系統**
-   - 識別 11 個關鍵路口：[0, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60]
-   - 初始 5x 權重，後降至 2x（避免過度優化）
-   - 實現位置：`ai/unified_reward_system.py`
-
-2. **限速控制系統**
-   - 動作空間從 3 擴展到 6
-   - 新增動作：限速 30%、50%、取消限速
-   - 能源消耗 ∝ 速度^1.5
-   - 新增檔案：`world/speed_limit_manager.py`
-
-3. **走廊級限速設計**
-   - 整條走廊限速，而非單一路口
-   - 支援水平/垂直走廊獨立控制
-   - 自動應用到走廊上的所有機器人
-
-### 訓練問題診斷與修復
-
-#### 問題 1：NERL 不做決策（100% Keep）
-- **原因**：網路初始化導致所有輸出為 0
-- **修復**：
-  - 重寫 `EvolvableNetwork` 初始化
-  - 輸出層使用 uniform(-0.3, 0.3)
-  - 偏置設為遞增值確保動作差異
-
-#### 問題 2：動作統計缺失
-- **新增功能**：
-  - `action_counts` 追蹤各動作使用次數
-  - 訓練日誌顯示動作使用百分比
-  - 每代總結顯示最佳個體動作分布
-
-#### 問題 3：模型相容性錯誤
-- **錯誤**：`'EvolvableNetwork' object has no attribute 'fc1'`
-- **修復**：
-  - 添加 `load_state_dict` 方法處理舊模型
-  - 保留 `self.layers` 屬性向後相容
-
-### 獎勵系統調整（V7.1）
-1. **簡化訂單完成獎勵**
-   - 運送中機器人直接獲得 2.0 × 路口權重獎勵
-   - 移除複雜的距離檢查
-
-2. **降低系統複雜度**
-   - 關鍵路口權重：5.0 → 2.0
-   - 總獎勵放大倍數：10 → 5
-
-### 關鍵檔案修改
-- `ai/controllers/nerl_controller.py`：網路架構重寫、動作統計
-- `ai/unified_reward_system.py`：V7 獎勵系統、權重調整
-- `world/entities/robot.py`：限速支援
-- `train.py`：動作統計輸出、錯誤修復
-
-### 訓練建議
+## 訓練建議
 ```bash
 # 標準訓練
 python train.py --agent nerl --reward_mode step --generations 10 --population 20 --eval_ticks 3000
@@ -276,66 +398,13 @@ python train.py --agent nerl --reward_mode step --generations 10 --population 20
 python train.py --agent nerl --reward_mode step --generations 5 --population 10 --eval_ticks 2000
 ```
 
-### 預期改進
+## 預期改進
 - 動作使用多樣化（不再 100% Keep）
 - 限速功能開始被學習使用
 - 更穩定的訓練過程
 - 更好的訂單完成率
 
-## 2025/07/21 晚上更新 - 重要問題修復
+## 開發建議
 
-### 1. DQN 死鎖問題診斷
-**問題現象**：
-- DQN 訓練在 5250 ticks 死鎖
-- 路口 30 等待超過 655 ticks
-- 20 個機器人全部卡住
-- Final Epsilon: 1.0（完全隨機探索）
-
-**死鎖原因**：
-- V7 的 6 動作空間 + epsilon=1.0 完全隨機 = 災難
-- 關鍵路口（特別是路口 30）成為瓶頸
-
-### 2. 機器人直衝揀貨台 Bug
-**問題發現**：
-- 機器人收到任務後沒有去取貨架
-- 直接衝向揀貨台造成嚴重堵塞
-
-**問題根源**：
-```python
-# robot.py 第 806 行（修復前）
-def assignJobAndSetToTakePod(self, job: Job):
-    self.job = job
-    self.updateState("taking_pod", self.latest_tick)
-    self.job.job_state = "take_pod"
-    # 缺少：self.setMoveToTakePod()
-```
-
-**修復**：
-- 在 `assignJobAndSetToTakePod()` 中加入 `self.setMoveToTakePod()`
-- 確保機器人先移動到貨架位置
-
-### 3. NetLogo 除錯訊息問題
-**問題**：大量 DEBUG 訊息干擾訓練觀察
-
-**修復**：
-- 註釋掉 `netlogo.py` 中的所有 `print("DEBUG: ...")` 語句
-- 現在 `--log_level` 參數能正確控制輸出
-
-### 4. 機器人數量優化
-**修改**：30 → 20 個機器人
-- 檔案：`lib/generator/warehouse_generator.py:22`
-- 理由：減少擁堵，提高學習效率
-
-### 5. NetLogo + train.py 使用說明
-**正確流程**：
-```bash
-python train.py --agent dqn --reward_mode step --netlogo --training_ticks 10000
-# 等待 NetLogo 開啟
-# 在終端機按 Enter（不要在 NetLogo 操作）
-# Python 會自動控制一切
-```
-
-### 重要提醒
-- 這些修復對 DQN 和 NERL 訓練都有幫助
-- 建議先用較小參數測試系統穩定性
-- V7 系統的 6 動作空間需要更謹慎的探索策略
+### 測試和驗證腳本管理
+- 測試和驗證腳本如有需要製作以上兩樣類型的東西時 要放入/test資料夾中方便整理

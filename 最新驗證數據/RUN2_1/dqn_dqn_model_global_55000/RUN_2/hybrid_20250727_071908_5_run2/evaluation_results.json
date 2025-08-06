@@ -1,0 +1,35 @@
+{
+  "evaluation_config": {
+    "evaluation_ticks": 50000,
+    "num_runs": 1,
+    "timestamp": "2025-07-27_083306"
+  },
+  "results": [
+    {
+      "controller_name": "dqn_dqn_model_global_55000",
+      "controller_type": "dqn",
+      "run_id": 0,
+      "evaluation_ticks": 50000,
+      "warehouse_final_tick": 7499.999999993497,
+      "completed_orders": 186,
+      "total_orders": 212,
+      "completion_rate": 0.8773584905660378,
+      "avg_wait_time": 0.02574666666668899,
+      "robot_utilization": 0.0,
+      "total_energy": 33473.07266187467,
+      "energy_per_order": 179.962756246638,
+      "signal_switch_count": 13416,
+      "avg_traffic_rate": 0.00375007500150003,
+      "execution_time": 2179.433135509491,
+      "avg_tick_time": 0.04353014040470123,
+      "timestamp": "2025-07-27T08:33:06.572251",
+      "controller_metadata": {
+        "controller_type": "dqn",
+        "model_path": "models/training_runs/I_dqn_global/dqn_model_global_55000.pth"
+      }
+    }
+  ],
+  "controllers_evaluated": [
+    "dqn_dqn_model_global_55000"
+  ]
+}

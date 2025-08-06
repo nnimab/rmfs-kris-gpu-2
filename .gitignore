@@ -68,6 +68,10 @@ Thumbs.db
 *.tmp
 *.temp
 
+# 排除 test 目錄下的特定子目錄
+test/results/
+test/test/
+
 # 備註：以下檔案會被保留
 # - generated_backlog.csv (沒有數字後綴)
 # - assign_order.csv (沒有數字後綴)

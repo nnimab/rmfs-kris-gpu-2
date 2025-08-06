@@ -1,0 +1,34 @@
+{
+  "evaluation_config": {
+    "evaluation_ticks": 50000,
+    "num_runs": 1,
+    "timestamp": "2025-07-27_082749"
+  },
+  "results": [
+    {
+      "controller_name": "time_based",
+      "controller_type": "time_based",
+      "run_id": 0,
+      "evaluation_ticks": 50000,
+      "warehouse_final_tick": 7499.999999993497,
+      "completed_orders": 26,
+      "total_orders": 26,
+      "completion_rate": 1.0,
+      "avg_wait_time": 0.033686666666695876,
+      "robot_utilization": 0.0,
+      "total_energy": 2519.1671787500154,
+      "energy_per_order": 96.89104533653905,
+      "signal_switch_count": 594,
+      "avg_traffic_rate": 0.00028030863647575985,
+      "execution_time": 139.08193016052246,
+      "avg_tick_time": 0.0027292507457733154,
+      "timestamp": "2025-07-27T08:27:49.305089",
+      "controller_metadata": {
+        "controller_type": "time_based"
+      }
+    }
+  ],
+  "controllers_evaluated": [
+    "time_based"
+  ]
+}

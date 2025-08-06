@@ -1,0 +1,2 @@
+controller_name,controller_type,run_id,evaluation_ticks,warehouse_final_tick,completed_orders,total_orders,completion_rate,avg_wait_time,robot_utilization,total_energy,energy_per_order,signal_switch_count,avg_traffic_rate,execution_time,avg_tick_time,timestamp,controller_metadata
+queue_based,queue_based,0,50000,7499.999999993497,192,215,0.8930232558139535,0.021593333333352057,0.0,28345.273990000318,147.63163536458498,13168,0.003714316710576636,1834.7514832019806,0.036640950746536255,2025-07-27T07:03:50.440585,{'controller_type': 'queue_based'}

@@ -1,0 +1,35 @@
+{
+  "evaluation_config": {
+    "evaluation_ticks": 50000,
+    "num_runs": 1,
+    "timestamp": "2025-07-27_095839"
+  },
+  "results": [
+    {
+      "controller_name": "nerl_nerl_step_b8000ticks",
+      "controller_type": "nerl",
+      "run_id": 0,
+      "evaluation_ticks": 50000,
+      "warehouse_final_tick": 7499.999999993497,
+      "completed_orders": 183,
+      "total_orders": 212,
+      "completion_rate": 0.8632075471698113,
+      "avg_wait_time": 0.02296000000001991,
+      "robot_utilization": 0.0,
+      "total_energy": 28021.235774381177,
+      "energy_per_order": 153.12150696383156,
+      "signal_switch_count": 12027,
+      "avg_traffic_rate": 0.0035479497468737255,
+      "execution_time": 1888.3024883270264,
+      "avg_tick_time": 0.0377103949546814,
+      "timestamp": "2025-07-27T09:58:39.318464",
+      "controller_metadata": {
+        "controller_type": "nerl",
+        "model_path": "models/training_runs/F_nerl_step_b8000ticks/nerl_step_b8000ticks.pth"
+      }
+    }
+  ],
+  "controllers_evaluated": [
+    "nerl_nerl_step_b8000ticks"
+  ]
+}
