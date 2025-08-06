@@ -111,23 +111,33 @@ class CapacityAnalyzer:
         """載入詳細的評估結果"""
         for test_id, summary in self.raw_data.items():
             try:
+                # 為每個測試結果建立映射
+                results_map = {}
+                for result in summary.get('results', []):
+                    result_test_id = result.get('test_id', '')
+                    if result_test_id:
+                        results_map[result_test_id] = result
+                
                 # 尋找對應的詳細結果檔案
                 results_files = list(self.results_dir.rglob("evaluation_results.json"))
                 
                 for results_file in results_files:
-                    # 檢查是否屬於當前測試會話
-                    if test_id in str(results_file.parent):
-                        try:
-                            with open(results_file, 'r', encoding='utf-8') as f:
-                                detailed_results = json.load(f)
-                            
-                            if 'detailed_results' not in summary:
-                                summary['detailed_results'] = []
-                            
-                            summary['detailed_results'].append(detailed_results)
-                            
-                        except Exception as e:
-                            self.logger.warning(f"載入詳細結果 {results_file} 時發生錯誤: {e}")
+                    # 從路徑中提取測試ID
+                    path_parts = str(results_file.parent).split(os.sep)
+                    
+                    # 尋找包含測試ID的部分
+                    for part in path_parts:
+                        if part in results_map:
+                            try:
+                                with open(results_file, 'r', encoding='utf-8') as f:
+                                    detailed_results = json.load(f)
+                                
+                                # 將詳細結果直接附加到對應的result上
+                                results_map[part]['evaluation_results'] = detailed_results
+                                
+                            except Exception as e:
+                                self.logger.warning(f"載入詳細結果 {results_file} 時發生錯誤: {e}")
+                            break
                             
             except Exception as e:
                 self.logger.warning(f"載入測試 {test_id} 的詳細結果時發生錯誤: {e}")
@@ -148,14 +158,15 @@ class CapacityAnalyzer:
             all_results = []
             
             for test_id, summary in self.raw_data.items():
-                for result in summary.get('all_results', []):
+                for result in summary.get('results', []):
                     if result.get('status') == 'completed':
                         # 提取基本指標
                         processed_result = {
                             'test_id': test_id,
                             'robot_count': result['robot_count'],
                             'execution_time': result.get('execution_time', 0),
-                            'test_ticks': summary.get('test_ticks', 0)
+                            'test_ticks': summary.get('test_ticks', 0),
+                            'run_index': result.get('run_index', 0)
                         }
                         
                         # 提取評估結果中的指標
@@ -223,14 +234,14 @@ class CapacityAnalyzer:
         
         # 按機器人數量分組統計
         grouped = df.groupby('robot_count').agg({
-            'completion_rate': ['mean', 'std'],
-            'avg_wait_time': ['mean', 'std'],
-            'total_energy': ['mean', 'std'],
-            'energy_per_order': ['mean', 'std'],
-            'robot_utilization': ['mean', 'std'],
-            'execution_time': ['mean', 'std'],
-            'completed_orders': ['mean', 'std'],
-            'total_orders': ['mean', 'std']
+            'completion_rate': ['median', 'std'],
+            'avg_wait_time': ['median', 'std'],
+            'total_energy': ['median', 'std'],
+            'energy_per_order': ['median', 'std'],
+            'robot_utilization': ['median', 'std'],
+            'execution_time': ['median', 'std'],
+            'completed_orders': ['median', 'std'],
+            'total_orders': ['median', 'std']
         }).round(4)
         
         self.analysis_results['by_robot_count'] = grouped
@@ -300,7 +311,7 @@ class CapacityAnalyzer:
             
         elif method == 'zscore':
             # 使用Z-score方法
-            mean = df_copy[column].mean()
+            mean = df_copy[column].median()
             std = df_copy[column].std()
             z_scores = np.abs((df_copy[column] - mean) / std)
             outliers_mask = z_scores > threshold
@@ -325,7 +336,7 @@ class CapacityAnalyzer:
     
     def _clean_data_by_group(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        按機器人數量分組進行資料清洗
+        按機器人數量分組進行資料清洗（三層清洗策略）
         
         Args:
             df: 原始數據框架
@@ -333,62 +344,137 @@ class CapacityAnalyzer:
         Returns:
             清理後的數據框架
         """
-        cleaned_dfs = []
-        total_removed = 0
+        # 第一階段：處理訂單生成異常（總訂單 < 最大訂單數的 75%）
+        max_total_orders = df['total_orders'].max()
+        order_threshold = max_total_orders * 0.75  # 放寬到 75%
+        order_gen_anomaly_mask = df['total_orders'] < order_threshold
+        order_gen_anomalies = df[order_gen_anomaly_mask]
         
-        # 按機器人數量分組
-        for robot_count, group_df in df.groupby('robot_count'):
-            if len(group_df) < 3:
-                # 數據太少，不進行清洗
-                cleaned_dfs.append(group_df)
-                self.logger.info(f"機器人數量 {robot_count}: 數據量太少({len(group_df)}筆)，跳過清洗")
-                continue
+        if len(order_gen_anomalies) > 0:
+            self.logger.warning(f"檢測到 {len(order_gen_anomalies)} 筆訂單生成異常（總訂單 < {order_threshold:.0f}，最大訂單數: {max_total_orders}）")
+            for _, anomaly in order_gen_anomalies.iterrows():
+                self.outliers_removed.append({
+                    'robot_count': int(anomaly['robot_count']),
+                    'completed_orders': int(anomaly['completed_orders']),
+                    'total_orders': int(anomaly['total_orders']),
+                    'completion_rate': float(anomaly['completion_rate']),
+                    'reason': f'訂單生成異常 (總訂單: {anomaly["total_orders"]} < {order_threshold:.0f})'
+                })
+        
+        # 移除訂單生成異常的數據
+        df_after_order_filter = df[~order_gen_anomaly_mask]
+        
+        # 第二階段：檢測突發性能異常（新增）
+        sudden_anomaly_indices = []
+        for robot_count in df_after_order_filter['robot_count'].unique():
+            group = df_after_order_filter[df_after_order_filter['robot_count'] == robot_count].sort_values('run_index')
             
-            # 檢測完成訂單數的異常值
-            clean_df, outliers_df = self._detect_outliers(group_df, 'completed_orders')
-            
-            # 如果移除異常值後數據太少，使用較寬鬆的標準重新檢測
-            if len(clean_df) < 3 and len(group_df) >= 5:
-                self.logger.info(f"機器人數量 {robot_count}: 使用較寬鬆的標準重新檢測")
-                clean_df, outliers_df = self._detect_outliers(group_df, 'completed_orders', threshold=2.0)
-            
-            # 記錄被移除的數據
-            if len(outliers_df) > 0:
-                for _, outlier in outliers_df.iterrows():
-                    self.outliers_removed.append({
-                        'robot_count': int(outlier['robot_count']),
-                        'completed_orders': int(outlier['completed_orders']),
-                        'total_orders': int(outlier['total_orders']),
-                        'completion_rate': float(outlier['completion_rate']),
-                        'reason': f'完成訂單數異常 (組內平均: {group_df["completed_orders"].mean():.1f})'
-                    })
+            if len(group) >= 5:  # 需要足夠數據點
+                orders = group['completed_orders'].values
+                indices = group.index.tolist()
                 
-                total_removed += len(outliers_df)
+                # 計算去掉最大最小值後的平均（Trimmed Mean）
+                sorted_orders = sorted(orders)
+                trimmed_mean = np.mean(sorted_orders[1:-1]) if len(sorted_orders) > 2 else np.mean(sorted_orders)
+                
+                # 找出偏離超過 15% 的異常點
+                for i, (order_count, idx) in enumerate(zip(orders, indices)):
+                    if order_count < trimmed_mean * 0.85:
+                        # 額外檢查：如果前後都正常，當前異常，更可能是突發異常
+                        is_sudden = False
+                        if 0 < i < len(orders) - 1:
+                            if orders[i-1] > trimmed_mean * 0.9 and orders[i+1] > trimmed_mean * 0.9:
+                                is_sudden = True
+                        
+                        if is_sudden or order_count < trimmed_mean * 0.85:
+                            sudden_anomaly_indices.append(idx)
+                            row = group.loc[idx]
+                            self.outliers_removed.append({
+                                'robot_count': int(row['robot_count']),
+                                'completed_orders': int(row['completed_orders']),
+                                'total_orders': int(row['total_orders']),
+                                'completion_rate': float(row['completion_rate']),
+                                'reason': f'突發性能異常 (完成訂單: {order_count} < 去極值平均 {trimmed_mean:.0f} 的 85%)'
+                            })
+        
+        # 建立突發異常遮罩
+        sudden_anomaly_mask = df_after_order_filter.index.isin(sudden_anomaly_indices)
+        
+        # 移除突發異常
+        df_after_sudden_filter = df_after_order_filter[~sudden_anomaly_mask]
+        
+        # 第三階段：檢測一般性能異常（放寬條件，且需要兩個條件都滿足）
+        # 先計算每個機器人配置的中位數
+        robot_medians = df_after_sudden_filter.groupby('robot_count')['completed_orders'].median()
+        
+        # 建立性能異常列表
+        performance_anomaly_indices = []
+        
+        for robot_count in df_after_sudden_filter['robot_count'].unique():
+            group_data = df_after_sudden_filter[df_after_sudden_filter['robot_count'] == robot_count]
             
-            cleaned_dfs.append(clean_df)
-            
-            # 記錄清洗統計
-            if robot_count not in self.cleaning_stats:
-                self.cleaning_stats[robot_count] = {}
+            if robot_count in robot_medians:
+                median_orders = robot_medians[robot_count]
+                # 兩個條件都要滿足才算異常
+                anomaly_mask = (
+                    (group_data['completion_rate'] < 0.70) & 
+                    (group_data['completed_orders'] < median_orders * 0.5)
+                )
+                # 記錄異常的索引
+                anomaly_indices = group_data[anomaly_mask].index.tolist()
+                performance_anomaly_indices.extend(anomaly_indices)
+        
+        # 建立性能異常遮罩
+        performance_anomaly_mask = df_after_sudden_filter.index.isin(performance_anomaly_indices)
+        performance_anomalies = df_after_sudden_filter[performance_anomaly_mask]
+        
+        if len(performance_anomalies) > 0:
+            self.logger.warning(f"檢測到 {len(performance_anomalies)} 筆一般性能異常")
+            for _, anomaly in performance_anomalies.iterrows():
+                self.outliers_removed.append({
+                    'robot_count': int(anomaly['robot_count']),
+                    'completed_orders': int(anomaly['completed_orders']),
+                    'total_orders': int(anomaly['total_orders']),
+                    'completion_rate': float(anomaly['completion_rate']),
+                    'reason': f'一般性能異常 (完成率: {anomaly["completion_rate"]:.1%} < 70% 且 完成訂單: {anomaly["completed_orders"]} < 組內中位數 50%)'
+                })
+        
+        # 移除性能異常的數據
+        df_after_all_filters = df_after_sudden_filter[~performance_anomaly_mask]
+        
+        # 統計清洗結果
+        total_removed = len(order_gen_anomalies) + len(sudden_anomaly_indices) + len(performance_anomalies)
+        
+        # 按機器人數量分組統計
+        for robot_count in df['robot_count'].unique():
+            # 獲取該機器人配置的原始數據
+            original_group = df[df['robot_count'] == robot_count]
+            # 獲取清洗後的數據
+            cleaned_group = df_after_all_filters[df_after_all_filters['robot_count'] == robot_count]
             
             self.cleaning_stats[robot_count] = {
-                'original_count': len(group_df),
-                'cleaned_count': len(clean_df),
-                'removed_count': len(outliers_df),
-                'removal_rate': len(outliers_df) / len(group_df) * 100 if len(group_df) > 0 else 0,
-                'mean_before': group_df['completed_orders'].mean(),
-                'mean_after': clean_df['completed_orders'].mean() if len(clean_df) > 0 else 0,
-                'std_before': group_df['completed_orders'].std(),
-                'std_after': clean_df['completed_orders'].std() if len(clean_df) > 0 else 0
+                'original_count': len(original_group),
+                'cleaned_count': len(cleaned_group),
+                'removed_count': len(original_group) - len(cleaned_group),
+                'removal_rate': (len(original_group) - len(cleaned_group)) / len(original_group) * 100 if len(original_group) > 0 else 0,
+                'median_before': original_group['completed_orders'].median(),
+                'median_after': cleaned_group['completed_orders'].median() if len(cleaned_group) > 0 else 0,
+                'std_before': original_group['completed_orders'].std(),
+                'std_after': cleaned_group['completed_orders'].std() if len(cleaned_group) > 0 else 0,
+                'order_threshold': order_threshold
             }
         
-        # 合併清理後的數據
-        if cleaned_dfs:
-            cleaned_df = pd.concat(cleaned_dfs, ignore_index=True)
-            self.logger.info(f"資料清洗完成: 原始 {len(df)} 筆，清理後 {len(cleaned_df)} 筆，移除 {total_removed} 筆")
-            return cleaned_df
-        else:
-            return df
+        # 記錄整體統計
+        self.logger.info(f"資料清洗完成: 原始 {len(df)} 筆，清理後 {len(df_after_all_filters)} 筆，移除 {total_removed} 筆")
+        self.logger.info(f"- 訂單生成異常: {len(order_gen_anomalies)} 筆")
+        self.logger.info(f"- 突發性能異常: {len(sudden_anomaly_indices)} 筆")
+        self.logger.info(f"- 一般性能異常: {len(performance_anomalies)} 筆")
+        self.logger.info(f"- 總移除率: {total_removed/len(df)*100:.1f}%")
+        
+        if total_removed > len(df) * 0.2:
+            self.logger.warning(f"警告：移除了超過 20% 的數據，請檢查清洗標準是否過於嚴格")
+        
+        return df_after_all_filters
     
     def _calculate_scalability_metrics(self, df: pd.DataFrame):
         """計算擴展性指標"""
@@ -406,8 +492,8 @@ class CapacityAnalyzer:
         for i, count in enumerate(robot_counts[1:], 1):
             prev_count = robot_counts[i-1]
             
-            current_throughput = sorted_df[sorted_df['robot_count'] == count]['throughput'].mean()
-            prev_throughput = sorted_df[sorted_df['robot_count'] == prev_count]['throughput'].mean()
+            current_throughput = sorted_df[sorted_df['robot_count'] == count]['throughput'].median()
+            prev_throughput = sorted_df[sorted_df['robot_count'] == prev_count]['throughput'].median()
             
             expected_throughput = prev_throughput * (count / prev_count)  # 理想線性擴展
             actual_ratio = current_throughput / expected_throughput if expected_throughput > 0 else 0
@@ -419,7 +505,7 @@ class CapacityAnalyzer:
             })
         
         # 檢測容量飽和
-        completion_rates = [sorted_df[sorted_df['robot_count'] == count]['completion_rate'].mean() 
+        completion_rates = [sorted_df[sorted_df['robot_count'] == count]['completion_rate'].median() 
                           for count in robot_counts]
         
         # 如果最後兩個數據點的完成率差距小於 1%，認為出現容量飽和
@@ -477,6 +563,240 @@ class CapacityAnalyzer:
             self.logger.error(f"生成圖表時發生錯誤: {e}")
         
         return [f for f in chart_files if f]  # 過濾掉 None 值  # 過濾掉 None 值
+
+    def export_csv_data(self) -> Dict[str, str]:
+        """
+        匯出各種 CSV 數據報表
+        
+        Returns:
+            包含各個 CSV 檔案路徑的字典
+        """
+        if 'df' not in self.processed_data:
+            self.logger.error("沒有處理過的數據，無法匯出 CSV")
+            return {}
+        
+        csv_files = {}
+        csv_dir = self.results_dir / 'csv_exports'
+        csv_dir.mkdir(exist_ok=True)
+        
+        try:
+            # 1. 匯出原始數據（所有 run 的詳細資訊）
+            raw_csv = self._export_raw_data_csv(csv_dir)
+            if raw_csv:
+                csv_files['raw_data'] = raw_csv
+            
+            # 2. 匯出清洗前後的比較數據
+            comparison_csv = self._export_cleaning_comparison_csv(csv_dir)
+            if comparison_csv:
+                csv_files['cleaning_comparison'] = comparison_csv
+            
+            # 3. 匯出按機器人數量分組的統計數據
+            stats_csv = self._export_grouped_statistics_csv(csv_dir)
+            if stats_csv:
+                csv_files['grouped_statistics'] = stats_csv
+            
+            # 4. 匯出異常數據詳細資訊
+            if self.outliers_removed:
+                outliers_csv = self._export_outliers_csv(csv_dir)
+                if outliers_csv:
+                    csv_files['outliers'] = outliers_csv
+            
+            self.logger.info(f"成功匯出 {len(csv_files)} 個 CSV 檔案")
+            
+        except Exception as e:
+            self.logger.error(f"匯出 CSV 時發生錯誤: {e}")
+        
+        return csv_files
+    
+    def _export_raw_data_csv(self, output_dir: Path) -> Optional[str]:
+        """匯出所有原始數據"""
+        try:
+            # 使用原始數據（未清洗）
+            df = self.processed_data.get('df_original', self.processed_data['df']).copy()
+            
+            # 確保所有欄位都存在
+            columns = [
+                'test_id', 'robot_count', 'run_index', 
+                'evaluation_ticks', 'warehouse_final_tick',
+                'completed_orders', 'total_orders', 'completion_rate',
+                'avg_wait_time', 'robot_utilization', 'total_energy',
+                'energy_per_order', 'signal_switch_count', 'avg_traffic_rate',
+                'execution_time', 'avg_tick_time', 'test_ticks'
+            ]
+            
+            # 只保留存在的欄位
+            existing_columns = [col for col in columns if col in df.columns]
+            df_export = df[existing_columns]
+            
+            # 按機器人數量和 run_index 排序
+            df_export = df_export.sort_values(['robot_count', 'run_index'])
+            
+            # 匯出檔案
+            csv_file = output_dir / 'raw_data_all_runs.csv'
+            df_export.to_csv(csv_file, index=False, encoding='utf-8-sig')
+            
+            self.logger.info(f"匯出原始數據 CSV: {csv_file}")
+            return str(csv_file)
+            
+        except Exception as e:
+            self.logger.error(f"匯出原始數據 CSV 時發生錯誤: {e}")
+            return None
+    
+    def _export_cleaning_comparison_csv(self, output_dir: Path) -> Optional[str]:
+        """匯出清洗前後的比較數據"""
+        try:
+            comparison_data = []
+            
+            # 獲取原始和清洗後的數據
+            df_original = self.processed_data.get('df_original')
+            df_cleaned = self.processed_data.get('df')
+            
+            if df_original is None or not self.enable_cleaning:
+                self.logger.info("未啟用資料清洗或無原始數據，跳過清洗比較 CSV")
+                return None
+            
+            # 按機器人數量分組計算統計
+            for robot_count in sorted(df_original['robot_count'].unique()):
+                original_group = df_original[df_original['robot_count'] == robot_count]
+                cleaned_group = df_cleaned[df_cleaned['robot_count'] == robot_count]
+                
+                # 計算各項指標的統計值
+                metrics = ['completed_orders', 'total_orders', 'completion_rate', 
+                          'total_energy', 'energy_per_order', 'avg_wait_time']
+                
+                row_data = {'robot_count': robot_count}
+                
+                for metric in metrics:
+                    # 原始數據統計
+                    row_data[f'{metric}_original_mean'] = original_group[metric].mean()
+                    row_data[f'{metric}_original_median'] = original_group[metric].median()
+                    row_data[f'{metric}_original_std'] = original_group[metric].std()
+                    row_data[f'{metric}_original_count'] = len(original_group)
+                    
+                    # 清洗後數據統計
+                    if len(cleaned_group) > 0:
+                        row_data[f'{metric}_cleaned_mean'] = cleaned_group[metric].mean()
+                        row_data[f'{metric}_cleaned_median'] = cleaned_group[metric].median()
+                        row_data[f'{metric}_cleaned_std'] = cleaned_group[metric].std()
+                        row_data[f'{metric}_cleaned_count'] = len(cleaned_group)
+                    else:
+                        row_data[f'{metric}_cleaned_mean'] = None
+                        row_data[f'{metric}_cleaned_median'] = None
+                        row_data[f'{metric}_cleaned_std'] = None
+                        row_data[f'{metric}_cleaned_count'] = 0
+                
+                # 添加清洗統計
+                row_data['removed_count'] = len(original_group) - len(cleaned_group)
+                row_data['removal_rate'] = (len(original_group) - len(cleaned_group)) / len(original_group) * 100
+                
+                comparison_data.append(row_data)
+            
+            # 轉換為 DataFrame 並匯出
+            df_comparison = pd.DataFrame(comparison_data)
+            csv_file = output_dir / 'cleaning_comparison.csv'
+            df_comparison.to_csv(csv_file, index=False, encoding='utf-8-sig')
+            
+            self.logger.info(f"匯出清洗比較 CSV: {csv_file}")
+            return str(csv_file)
+            
+        except Exception as e:
+            self.logger.error(f"匯出清洗比較 CSV 時發生錯誤: {e}")
+            return None
+    
+    def _export_grouped_statistics_csv(self, output_dir: Path) -> Optional[str]:
+        """匯出按機器人數量分組的統計數據"""
+        try:
+            df = self.processed_data['df']
+            
+            # 按機器人數量分組計算詳細統計
+            grouped_stats = []
+            
+            for robot_count in sorted(df['robot_count'].unique()):
+                group = df[df['robot_count'] == robot_count]
+                
+                stats = {
+                    'robot_count': robot_count,
+                    'run_count': len(group),
+                    
+                    # 完成訂單統計
+                    'completed_orders_mean': group['completed_orders'].mean(),
+                    'completed_orders_median': group['completed_orders'].median(),
+                    'completed_orders_std': group['completed_orders'].std(),
+                    'completed_orders_min': group['completed_orders'].min(),
+                    'completed_orders_max': group['completed_orders'].max(),
+                    
+                    # 完成率統計
+                    'completion_rate_mean': group['completion_rate'].mean(),
+                    'completion_rate_median': group['completion_rate'].median(),
+                    'completion_rate_std': group['completion_rate'].std(),
+                    'completion_rate_min': group['completion_rate'].min(),
+                    'completion_rate_max': group['completion_rate'].max(),
+                    
+                    # 能源統計
+                    'total_energy_mean': group['total_energy'].mean(),
+                    'total_energy_median': group['total_energy'].median(),
+                    'total_energy_std': group['total_energy'].std(),
+                    'total_energy_min': group['total_energy'].min(),
+                    'total_energy_max': group['total_energy'].max(),
+                    
+                    'energy_per_order_mean': group['energy_per_order'].mean(),
+                    'energy_per_order_median': group['energy_per_order'].median(),
+                    'energy_per_order_std': group['energy_per_order'].std(),
+                    
+                    # 等待時間統計
+                    'avg_wait_time_mean': group['avg_wait_time'].mean(),
+                    'avg_wait_time_median': group['avg_wait_time'].median(),
+                    
+                    # 機器人利用率
+                    'robot_utilization_mean': group['robot_utilization'].mean(),
+                    'robot_utilization_median': group['robot_utilization'].median(),
+                    
+                    # 執行時間統計
+                    'execution_time_mean': group['execution_time'].mean(),
+                    'execution_time_median': group['execution_time'].median(),
+                    
+                    # 效率指標
+                    'orders_per_robot': group['completed_orders'].median() / robot_count,
+                    'energy_per_robot': group['total_energy'].median() / robot_count,
+                    'throughput': group['completed_orders'].median() / (group['test_ticks'].median() / 1000)
+                }
+                
+                grouped_stats.append(stats)
+            
+            # 轉換為 DataFrame 並匯出
+            df_stats = pd.DataFrame(grouped_stats)
+            csv_file = output_dir / 'grouped_statistics.csv'
+            df_stats.to_csv(csv_file, index=False, encoding='utf-8-sig')
+            
+            self.logger.info(f"匯出分組統計 CSV: {csv_file}")
+            return str(csv_file)
+            
+        except Exception as e:
+            self.logger.error(f"匯出分組統計 CSV 時發生錯誤: {e}")
+            return None
+    
+    def _export_outliers_csv(self, output_dir: Path) -> Optional[str]:
+        """匯出異常數據詳細資訊"""
+        try:
+            if not self.outliers_removed:
+                return None
+            
+            # 將異常數據列表轉換為 DataFrame
+            df_outliers = pd.DataFrame(self.outliers_removed)
+            
+            # 按機器人數量和原因排序
+            df_outliers = df_outliers.sort_values(['robot_count', 'reason'])
+            
+            # 匯出檔案
+            csv_file = output_dir / 'outliers_details.csv'
+            df_outliers.to_csv(csv_file, index=False, encoding='utf-8-sig')
+            
+            self.logger.info(f"匯出異常數據 CSV: {csv_file}")
+            return str(csv_file)
+            
+        except Exception as e:
+            self.logger.error(f"匯出異常數據 CSV 時發生錯誤: {e}")
+            return None
     
     def _create_capacity_performance_chart(self, df: pd.DataFrame, output_dir: Path) -> Optional[str]:
         """創建容量-性能關係圖"""
@@ -485,10 +805,10 @@ class CapacityAnalyzer:
             
             # 按機器人數量分組
             grouped = df.groupby('robot_count').agg({
-                'completion_rate': 'mean',
-                'completed_orders': 'mean',
-                'avg_wait_time': 'mean',
-                'throughput': 'mean'
+                'completion_rate': 'median',
+                'completed_orders': 'median',
+                'avg_wait_time': 'median',
+                'throughput': 'median'
             })
             
             robot_counts = grouped.index
@@ -497,7 +817,7 @@ class CapacityAnalyzer:
             ax1.plot(robot_counts, grouped['completion_rate'], 'bo-', linewidth=2, markersize=8)
             ax1.set_xlabel('機器人數量')
             ax1.set_ylabel('訂單完成率')
-            ax1.set_title('完成率 vs 機器人數量 (平均值)')
+            ax1.set_title('完成率 vs 機器人數量 (中位數)')
             ax1.grid(True, alpha=0.3)
             ax1.set_ylim(0, 1.1)
             
@@ -505,7 +825,7 @@ class CapacityAnalyzer:
             ax2.plot(robot_counts, grouped['completed_orders'], 'go-', linewidth=2, markersize=8)
             ax2.set_xlabel('機器人數量')
             ax2.set_ylabel('完成訂單數')
-            ax2.set_title('完成訂單數 vs 機器人數量 (平均值)')
+            ax2.set_title('完成訂單數 vs 機器人數量 (中位數)')
             ax2.grid(True, alpha=0.3)
             
             # 平均等待時間 vs 機器人數量
@@ -519,7 +839,7 @@ class CapacityAnalyzer:
             ax4.plot(robot_counts, grouped['throughput'], 'mo-', linewidth=2, markersize=8)
             ax4.set_xlabel('機器人數量')
             ax4.set_ylabel('吞吐量 (訂單/千tick)')
-            ax4.set_title('系統吞吐量 vs 機器人數量 (平均值)')
+            ax4.set_title('系統吞吐量 vs 機器人數量 (中位數)')
             ax4.grid(True, alpha=0.3)
             
             plt.tight_layout()
@@ -544,8 +864,8 @@ class CapacityAnalyzer:
             df_efficiency['orders_per_robot'] = df_efficiency['completed_orders'] / df_efficiency['robot_count']
             
             grouped = df_efficiency.groupby('robot_count').agg({
-                'orders_per_robot': 'mean',
-                'robot_utilization': 'mean'
+                'orders_per_robot': 'median',
+                'robot_utilization': 'median'
             })
             
             robot_counts = grouped.index
@@ -554,7 +874,7 @@ class CapacityAnalyzer:
             ax1.bar(robot_counts, grouped['orders_per_robot'], color='skyblue', alpha=0.7)
             ax1.set_xlabel('機器人數量')
             ax1.set_ylabel('每機器人完成訂單數')
-            ax1.set_title('機器人效率分析 (平均值)')
+            ax1.set_title('機器人效率分析 (中位數)')
             ax1.grid(True, alpha=0.3)
             
             # 添加數值標籤
@@ -565,7 +885,7 @@ class CapacityAnalyzer:
             ax2.bar(robot_counts, grouped['robot_utilization'], color='lightcoral', alpha=0.7)
             ax2.set_xlabel('機器人數量')
             ax2.set_ylabel('機器人利用率')
-            ax2.set_title('機器人利用率分析 (平均值)')
+            ax2.set_title('機器人利用率分析 (中位數)')
             ax2.grid(True, alpha=0.3)
             ax2.set_ylim(0, 1.1)
             
@@ -591,8 +911,8 @@ class CapacityAnalyzer:
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
             
             grouped = df.groupby('robot_count').agg({
-                'total_energy': 'mean',
-                'energy_per_order': 'mean'
+                'total_energy': 'median',
+                'energy_per_order': 'median'
             })
             
             robot_counts = grouped.index
@@ -601,14 +921,14 @@ class CapacityAnalyzer:
             ax1.plot(robot_counts, grouped['total_energy'], 'o-', color='orange', linewidth=2, markersize=8)
             ax1.set_xlabel('機器人數量')
             ax1.set_ylabel('總能源消耗')
-            ax1.set_title('總能源消耗 vs 機器人數量 (平均值)')
+            ax1.set_title('總能源消耗 vs 機器人數量 (中位數)')
             ax1.grid(True, alpha=0.3)
             
             # 每訂單能源消耗
             ax2.plot(robot_counts, grouped['energy_per_order'], 'o-', color='red', linewidth=2, markersize=8)
             ax2.set_xlabel('機器人數量')
             ax2.set_ylabel('每訂單能源消耗')
-            ax2.set_title('能源效率 vs 機器人數量 (平均值)')
+            ax2.set_title('能源效率 vs 機器人數量 (中位數)')
             ax2.grid(True, alpha=0.3)
             
             plt.tight_layout()
@@ -640,7 +960,7 @@ class CapacityAnalyzer:
                 ax1.axhline(y=1.0, color='red', linestyle='--', alpha=0.7, label='理想線性擴展')
                 ax1.set_xlabel('機器人數量')
                 ax1.set_ylabel('擴展性比率')
-                ax1.set_title('線性擴展性分析 (基於平均值)')
+                ax1.set_title('線性擴展性分析 (基於中位數)')
                 ax1.grid(True, alpha=0.3)
                 ax1.legend()
                 
@@ -652,7 +972,7 @@ class CapacityAnalyzer:
             
             # 吞吐量增長率
             df_sorted = df.sort_values('robot_count')
-            grouped = df_sorted.groupby('robot_count')['throughput'].mean()
+            grouped = df_sorted.groupby('robot_count')['throughput'].median()
             
             growth_rates = []
             robot_counts_growth = list(grouped.index[1:])
@@ -667,7 +987,7 @@ class CapacityAnalyzer:
                 ax2.bar(robot_counts_growth, growth_rates, color='skyblue', alpha=0.7)
                 ax2.set_xlabel('機器人數量')
                 ax2.set_ylabel('吞吐量增長率 (%)')
-                ax2.set_title('吞吐量增長率分析 (基於平均值)')
+                ax2.set_title('吞吐量增長率分析 (基於中位數)')
                 ax2.grid(True, alpha=0.3)
                 ax2.axhline(y=0, color='black', linestyle='-', alpha=0.3)
             
@@ -692,9 +1012,9 @@ class CapacityAnalyzer:
             # 主要性能指標概覽
             ax1 = fig.add_subplot(gs[0, :])
             grouped = df.groupby('robot_count').agg({
-                'completion_rate': 'mean',
-                'avg_wait_time': 'mean',
-                'throughput': 'mean'
+                'completion_rate': 'median',
+                'avg_wait_time': 'median',
+                'throughput': 'median'
             })
             
             robot_counts = grouped.index
@@ -712,7 +1032,7 @@ class CapacityAnalyzer:
             ax1.set_ylabel('完成率', color='b')
             ax1_twin1.set_ylabel('平均等待時間', color='r')
             ax1_twin2.set_ylabel('吞吐量', color='g')
-            ax1.set_title('RMFS 系統容量測試 - 主要性能指標 (所有數據為平均值)', fontsize=16, fontweight='bold', pad=20)
+            ax1.set_title('RMFS 系統容量測試 - 主要性能指標 (所有數據為中位數)', fontsize=16, fontweight='bold', pad=20)
             
             # 最佳性能點標註
             best_perf = self.analysis_results.get('best_performance', {})
@@ -728,7 +1048,7 @@ class CapacityAnalyzer:
             ax2 = fig.add_subplot(gs[1, 0])
             df_eff = df.copy()
             df_eff['orders_per_robot'] = df_eff['completed_orders'] / df_eff['robot_count']
-            eff_grouped = df_eff.groupby('robot_count')['orders_per_robot'].mean()
+            eff_grouped = df_eff.groupby('robot_count')['orders_per_robot'].median()
             
             ax2.bar(eff_grouped.index, eff_grouped.values, color='skyblue', alpha=0.7)
             ax2.set_title('機器人效率')
@@ -737,7 +1057,7 @@ class CapacityAnalyzer:
             
             # 能源效率
             ax3 = fig.add_subplot(gs[1, 1])
-            energy_grouped = df.groupby('robot_count')['energy_per_order'].mean()
+            energy_grouped = df.groupby('robot_count')['energy_per_order'].median()
             ax3.plot(energy_grouped.index, energy_grouped.values, 'ro-')
             ax3.set_title('能源效率')
             ax3.set_xlabel('機器人數量')
@@ -984,8 +1304,11 @@ class CapacityAnalyzer:
             # 生成圖表
             chart_files = self.generate_charts()
             
+            # 生成 CSV 數據檔案
+            csv_files = self.export_csv_data()
+            
             # 生成文字報告
-            report_file = self._generate_text_report(chart_files)
+            report_file = self._generate_text_report(chart_files, csv_files)
             
             self.logger.info(f"分析報告已生成: {report_file}")
             return report_file
@@ -994,7 +1317,7 @@ class CapacityAnalyzer:
             self.logger.error(f"生成分析報告時發生錯誤: {e}")
             return ""
     
-    def _generate_text_report(self, chart_files: List[str]) -> str:
+    def _generate_text_report(self, chart_files: List[str], csv_files: Dict[str, str] = None) -> str:
         """生成文字報告"""
         report_file = self.results_dir / f'capacity_analysis_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.md'
         
@@ -1051,8 +1374,8 @@ class CapacityAnalyzer:
                 
                 linear_data = scalability.get('linear_scalability', [])
                 if linear_data:
-                    avg_scalability = np.mean([item['scalability_ratio'] for item in linear_data])
-                    f.write(f"- **平均擴展性比率**: {avg_scalability:.2f}\n")
+                    avg_scalability = np.median([item['scalability_ratio'] for item in linear_data])
+                    f.write(f"- **中位數擴展性比率**: {avg_scalability:.2f}\n")
                     
                     if avg_scalability > 0.8:
                         f.write("- **擴展性評估**: 良好，系統能有效利用額外的機器人\n")
@@ -1082,14 +1405,14 @@ class CapacityAnalyzer:
                     f.write("\n")
                 
                 f.write("### 清洗後統計數據\n\n")
-                f.write("| 機器人數量 | 平均完成率 | 平均等待時間 | 平均能源消耗 | 平均能源/訂單 |\n")
+                f.write("| 機器人數量 | 中位數完成率 | 中位數等待時間 | 中位數能源消耗 | 中位數能源/訂單 |\n")
                 f.write("|-----------|------------|-------------|-------------|---------------|\n")
                 
                 for robot_count in grouped.index:
-                    completion_rate = grouped.loc[robot_count]['completion_rate']['mean']
-                    wait_time = grouped.loc[robot_count]['avg_wait_time']['mean']
-                    total_energy = grouped.loc[robot_count]['total_energy']['mean']
-                    energy_per_order = grouped.loc[robot_count]['energy_per_order']['mean']
+                    completion_rate = grouped.loc[robot_count]['completion_rate']['median']
+                    wait_time = grouped.loc[robot_count]['avg_wait_time']['median']
+                    total_energy = grouped.loc[robot_count]['total_energy']['median']
+                    energy_per_order = grouped.loc[robot_count]['energy_per_order']['median']
                     
                     f.write(f"| {robot_count} | {completion_rate:.1%} | {wait_time:.2f} | {total_energy:.0f} | {energy_per_order:.2f} |\n")
                 
@@ -1102,6 +1425,25 @@ class CapacityAnalyzer:
                     if chart_file:
                         chart_name = Path(chart_file).stem
                         f.write(f"- [{chart_name}]({Path(chart_file).name})\n")
+                f.write("\n")
+            
+            # CSV 資料檔案
+            if csv_files:
+                f.write("## 匯出的資料檔案\n\n")
+                f.write("以下 CSV 檔案包含詳細的數據分析結果：\n\n")
+                
+                file_descriptions = {
+                    'raw_data': '原始數據（所有測試 run 的詳細資訊）',
+                    'cleaning_comparison': '資料清洗前後的比較統計',
+                    'grouped_statistics': '按機器人數量分組的統計數據',
+                    'outliers': '被移除的異常數據詳細資訊'
+                }
+                
+                for key, file_path in csv_files.items():
+                    if file_path:
+                        file_name = Path(file_path).name
+                        description = file_descriptions.get(key, key)
+                        f.write(f"- [{file_name}](csv_exports/{file_name}) - {description}\n")
                 f.write("\n")
             
             # 建議
