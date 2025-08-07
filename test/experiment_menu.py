@@ -826,8 +826,8 @@ class ExperimentMenu:
                 time_ratios=time_ratios,
                 runs_per_config=runs_per_config,
                 test_ticks=test_ticks,
-                parallel=parallel,
-                max_parallel=max_parallel
+                parallel=False,  # 暫時關閉並行執行以避免 Windows 問題
+                max_parallel=1
             )
             
             # 顯示結果摘要
@@ -875,8 +875,8 @@ class ExperimentMenu:
                 queue_thresholds=queue_thresholds,
                 runs_per_config=runs_per_config,
                 test_ticks=test_ticks,
-                parallel=parallel,
-                max_parallel=max_parallel
+                parallel=False,  # 暫時關閉並行執行以避免 Windows 問題
+                max_parallel=1
             )
             
             # 顯示結果摘要

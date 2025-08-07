@@ -159,33 +159,64 @@ class BaselineTestController:
         if max_parallel is None:
             max_parallel = max(1, os.cpu_count() // 2) if parallel else 1
         
+        self.logger.info(f"開始執行測試，總數: {len(test_configs)}, 並行: {parallel}, 最大並行數: {max_parallel}")
+        
         all_results = []
         start_time = time.time()
         
         if parallel and max_parallel > 1:
             # 並行執行
-            with ProcessPoolExecutor(max_workers=max_parallel) as executor:
-                future_to_config = {
-                    executor.submit(self._run_single_test, config): config
-                    for config in test_configs
-                }
-                
-                for future in as_completed(future_to_config):
-                    config = future_to_config[future]
-                    try:
-                        result = future.result()
-                        all_results.append(result)
-                        self.logger.info(f"完成測試: {config['test_id']}")
-                    except Exception as e:
-                        self.logger.error(f"測試失敗 {config['test_id']}: {e}")
-                        error_result = {
-                            'test_id': config['test_id'],
-                            'robot_count': config['robot_count'],
-                            'status': 'failed',
-                            'error': str(e),
-                            **config
-                        }
-                        all_results.append(error_result)
+            # 在 Windows 下需要使用頂層函數
+            import platform
+            if platform.system() == 'Windows':
+                # Windows 下使用包裝函數
+                from test.baseline_test_controller import run_single_test_wrapper
+                with ProcessPoolExecutor(max_workers=max_parallel) as executor:
+                    future_to_config = {
+                        executor.submit(run_single_test_wrapper, config): config
+                        for config in test_configs
+                    }
+                    
+                    for future in as_completed(future_to_config):
+                        config = future_to_config[future]
+                        try:
+                            result = future.result()
+                            all_results.append(result)
+                            self.logger.info(f"完成測試: {config['test_id']}")
+                        except Exception as e:
+                            self.logger.error(f"測試失敗 {config['test_id']}: {e}")
+                            error_result = {
+                                'test_id': config['test_id'],
+                                'robot_count': config['robot_count'],
+                                'status': 'failed',
+                                'error': str(e),
+                                **config
+                            }
+                            all_results.append(error_result)
+            else:
+                # 其他平台可以直接使用方法
+                with ProcessPoolExecutor(max_workers=max_parallel) as executor:
+                    future_to_config = {
+                        executor.submit(self._run_single_test, config): config
+                        for config in test_configs
+                    }
+                    
+                    for future in as_completed(future_to_config):
+                        config = future_to_config[future]
+                        try:
+                            result = future.result()
+                            all_results.append(result)
+                            self.logger.info(f"完成測試: {config['test_id']}")
+                        except Exception as e:
+                            self.logger.error(f"測試失敗 {config['test_id']}: {e}")
+                            error_result = {
+                                'test_id': config['test_id'],
+                                'robot_count': config['robot_count'],
+                                'status': 'failed',
+                                'error': str(e),
+                                **config
+                            }
+                            all_results.append(error_result)
         else:
             # 串行執行
             for config in test_configs:
@@ -333,3 +364,64 @@ class BaselineTestController:
         self.logger.info(f"測試摘要已保存: {summary_file}")
         
         return summary
+
+# 定義一個頂層函數來支援 Windows 下的多進程
+def run_single_test_wrapper(config: Dict[str, Any]) -> Dict[str, Any]:
+    """包裝函數，用於在 Windows 下支援多進程"""
+    controller = BaselineTestController()
+    return controller._run_single_test(config)
+
+
+def main():
+    """主函數，用於命令列執行"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='基準模型參數掃描')
+    parser.add_argument('--robot-counts', nargs='+', type=int, default=[30, 35],
+                       help='要測試的機器人數量列表')
+    parser.add_argument('--ticks', type=int, default=100000,
+                       help='每個測試的 tick 數')
+    parser.add_argument('--runs', type=int, default=3,
+                       help='每個配置的運行次數')
+    parser.add_argument('--type', choices=['time_based', 'queue_based'], required=True,
+                       help='測試類型')
+    
+    args = parser.parse_args()
+    
+    # 創建測試控制器
+    controller = BaselineTestController()
+    
+    try:
+        if args.type == 'time_based':
+            # 執行 Time-Based 測試
+            summary = controller.run_time_based_sweep(
+                robot_counts=args.robot_counts,
+                time_ratios=["50:50", "60:40", "65:35", "70:30", "75:25", "80:20"],
+                runs_per_config=args.runs,
+                test_ticks=args.ticks,
+                parallel=True
+            )
+        else:
+            # 執行 Queue-Based 測試
+            summary = controller.run_queue_based_sweep(
+                robot_counts=args.robot_counts,
+                queue_thresholds=[2, 3, 4, 5, 6],
+                runs_per_config=args.runs,
+                test_ticks=args.ticks,
+                parallel=True
+            )
+        
+        print(f"\n=== {args.type} 測試完成 ===")
+        print(f"成功測試: {summary['completed_tests']}/{summary['total_tests']}")
+        print(f"總執行時間: {summary['total_execution_time']:.1f} 秒")
+        print(f"結果目錄: {summary['output_dir']}")
+        
+    except KeyboardInterrupt:
+        print("\n測試被用戶中斷")
+    except Exception as e:
+        print(f"測試執行時發生錯誤: {e}")
+        controller.logger.error(f"測試執行時發生錯誤: {e}")
+
+
+if __name__ == '__main__':
+    main()
