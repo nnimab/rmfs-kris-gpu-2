@@ -165,9 +165,26 @@ class ControllerEvaluator:
                     reward_mode=controller_config['reward_mode']
                 )
             elif controller_type == 'queue_based':
-                controller = QueueBasedController()
+                # 檢查是否有參數值
+                if 'param_value' in controller_config:
+                    # 假設參數值是 min_green_time
+                    min_green_time = int(controller_config['param_value'])
+                    controller = QueueBasedController(min_green_time=min_green_time)
+                else:
+                    controller = QueueBasedController()
             elif controller_type == 'time_based':
-                controller = TimeBasedController()
+                # 檢查是否有參數值
+                if 'param_value' in controller_config:
+                    # 參數值格式是 "60:40"，解析為水平和垂直時間
+                    ratio_parts = controller_config['param_value'].split(':')
+                    horizontal_time = int(ratio_parts[0])
+                    vertical_time = int(ratio_parts[1])
+                    controller = TimeBasedController(
+                        horizontal_green_time=horizontal_time,
+                        vertical_green_time=vertical_time
+                    )
+                else:
+                    controller = TimeBasedController()
             elif controller_type == 'none':
                 # 無控制器模式
                 controller = None
@@ -375,32 +392,49 @@ class ControllerEvaluator:
         
         for spec in controller_specs:
             if ':' in spec:
-                # AI模型格式: type:path/to/model.pth
                 parts = spec.split(':', 1)
                 controller_type = parts[0]
-                model_path = parts[1]
                 
-                # 從路徑中提取名稱
-                model_name = Path(model_path).stem
-                controller_name = f"{controller_type}_{model_name}"
-                
-                # 嘗試推斷reward_mode
-                if 'step' in model_name:
-                    reward_mode = 'step'
-                elif 'global' in model_name:
-                    reward_mode = 'global'
-                else:
-                    reward_mode = 'unknown'
-                
-                controllers[controller_name] = {
-                    'type': controller_type,
-                    'reward_mode': reward_mode,
-                    'model_path': model_path,
-                    'metadata': {
-                        'controller_type': controller_type,
-                        'model_path': model_path
+                if controller_type in ['time_based', 'queue_based']:
+                    # 基準控制器格式: time_based:60:40 或 queue_based:3
+                    param_value = parts[1]
+                    controller_name = f"{controller_type}_{param_value.replace(':', '')}"
+                    
+                    controllers[controller_name] = {
+                        'type': controller_type,
+                        'reward_mode': None,
+                        'model_path': None,
+                        'param_value': param_value,
+                        'metadata': {
+                            'controller_type': controller_type,
+                            'param_value': param_value
+                        }
                     }
-                }
+                else:
+                    # AI模型格式: type:path/to/model.pth
+                    model_path = parts[1]
+                    
+                    # 從路徑中提取名稱
+                    model_name = Path(model_path).stem
+                    controller_name = f"{controller_type}_{model_name}"
+                    
+                    # 嘗試推斷reward_mode
+                    if 'step' in model_name:
+                        reward_mode = 'step'
+                    elif 'global' in model_name:
+                        reward_mode = 'global'
+                    else:
+                        reward_mode = 'unknown'
+                    
+                    controllers[controller_name] = {
+                        'type': controller_type,
+                        'reward_mode': reward_mode,
+                        'model_path': model_path,
+                        'metadata': {
+                            'controller_type': controller_type,
+                            'model_path': model_path
+                        }
+                    }
             else:
                 # 傳統控制器
                 controllers[spec] = {

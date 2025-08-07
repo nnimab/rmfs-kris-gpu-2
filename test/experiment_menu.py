@@ -72,9 +72,10 @@ class ExperimentMenu:
         """顯示主選單"""
         menu_options = [
             "🧪 [bold green]系統容量壓力測試[/bold green] - 執行不同機器人數量的測試",
-            "▶️  [bold cyan]背景執行測試[/bold cyan] - 在背景執行測試，可繼續使用選單",
-            "📊 [bold yellow]監控進行中測試[/bold yellow] - 實時查看測試進度和輸出",
-            "📈 [bold blue]生成分析圖表[/bold blue] - 分析測試結果並生成報告",
+            "⚡ [bold yellow]Time-Based 參數掃描[/bold yellow] - 測試不同時間配比參數",
+            "📊 [bold cyan]Queue-Based 參數掃描[/bold cyan] - 測試不同隊列閾值參數",
+            "📈 [bold blue]生成容量測試圖表[/bold blue] - 分析容量測試結果",
+            "📊 [bold magenta]生成基準模型圖表[/bold magenta] - 分析基準模型參數掃描結果",
             "📉 [bold magenta]時間序列分析[/bold magenta] - 分析測試的時間序列數據",
             "🧹 [bold red]清理臨時檔案[/bold red] - 清理測試產生的臨時檔案",
             "📋 [bold cyan]顯示歷史測試[/bold cyan] - 查看過往測試記錄",
@@ -788,6 +789,244 @@ class ExperimentMenu:
         
         self.console.print(table)
     
+    def run_time_based_optimization(self):
+        """執行 Time-Based 控制器參數掃描"""
+        self.console.print(Panel("⚡ Time-Based 參數掃描", style="bold yellow"))
+        
+        # 測試參數設定
+        robot_counts = [30, 35]
+        time_ratios = ["50:50", "60:40", "65:35", "70:30", "75:25", "80:20"]
+        runs_per_config = self._get_runs_per_config()
+        test_ticks = self._get_test_ticks()
+        parallel = self._get_parallel_option()
+        max_parallel = self._get_max_parallel_option(parallel)
+        
+        # 顯示測試配置
+        self.console.print("\n📋 測試配置:")
+        self.console.print(f"機器人數量: {robot_counts}")
+        self.console.print(f"時間配比: {time_ratios}")
+        self.console.print(f"每個組合運行次數: {runs_per_config}")
+        self.console.print(f"測試時長: {test_ticks:,} ticks")
+        
+        total_tests = len(robot_counts) * len(time_ratios) * runs_per_config
+        self.console.print(f"\n總測試數: {total_tests}")
+        
+        # 確認開始
+        if not Confirm.ask("\n✅ 確認開始測試？", default=True):
+            return
+        
+        # 準備測試
+        from test.baseline_test_controller import BaselineTestController
+        controller = BaselineTestController()
+        
+        try:
+            # 執行測試
+            summary = controller.run_time_based_sweep(
+                robot_counts=robot_counts,
+                time_ratios=time_ratios,
+                runs_per_config=runs_per_config,
+                test_ticks=test_ticks,
+                parallel=parallel,
+                max_parallel=max_parallel
+            )
+            
+            # 顯示結果摘要
+            self._show_baseline_test_summary(summary, "Time-Based")
+            
+        except KeyboardInterrupt:
+            self.console.print("\n❌ 測試被用戶中斷")
+        except Exception as e:
+            self.console.print(f"\n❌ 測試執行時發生錯誤: {e}")
+    
+    def run_queue_based_optimization(self):
+        """執行 Queue-Based 控制器參數掃描"""
+        self.console.print(Panel("📊 Queue-Based 參數掃描", style="bold cyan"))
+        
+        # 測試參數設定
+        robot_counts = [30, 35]
+        queue_thresholds = [2, 3, 4, 5, 6]
+        runs_per_config = self._get_runs_per_config()
+        test_ticks = self._get_test_ticks()
+        parallel = self._get_parallel_option()
+        max_parallel = self._get_max_parallel_option(parallel)
+        
+        # 顯示測試配置
+        self.console.print("\n📋 測試配置:")
+        self.console.print(f"機器人數量: {robot_counts}")
+        self.console.print(f"隊列閾值: {queue_thresholds}")
+        self.console.print(f"每個組合運行次數: {runs_per_config}")
+        self.console.print(f"測試時長: {test_ticks:,} ticks")
+        
+        total_tests = len(robot_counts) * len(queue_thresholds) * runs_per_config
+        self.console.print(f"\n總測試數: {total_tests}")
+        
+        # 確認開始
+        if not Confirm.ask("\n✅ 確認開始測試？", default=True):
+            return
+        
+        # 準備測試
+        from test.baseline_test_controller import BaselineTestController
+        controller = BaselineTestController()
+        
+        try:
+            # 執行測試
+            summary = controller.run_queue_based_sweep(
+                robot_counts=robot_counts,
+                queue_thresholds=queue_thresholds,
+                runs_per_config=runs_per_config,
+                test_ticks=test_ticks,
+                parallel=parallel,
+                max_parallel=max_parallel
+            )
+            
+            # 顯示結果摘要
+            self._show_baseline_test_summary(summary, "Queue-Based")
+            
+        except KeyboardInterrupt:
+            self.console.print("\n❌ 測試被用戶中斷")
+        except Exception as e:
+            self.console.print(f"\n❌ 測試執行時發生錯誤: {e}")
+    
+    def generate_baseline_analysis(self):
+        """生成基準模型參數掃描的分析圖表"""
+        self.console.print(Panel("📊 生成基準模型分析圖表", style="bold magenta"))
+        
+        # 尋找基準模型測試結果
+        baseline_dir = Path("result/baseline_optimization")
+        if not baseline_dir.exists():
+            self.console.print("❌ 找不到基準模型測試結果目錄")
+            return
+        
+        # 列出可用的測試類型
+        test_types = []
+        if (baseline_dir / "time_based").exists():
+            test_types.append("time_based")
+        if (baseline_dir / "queue_based").exists():
+            test_types.append("queue_based")
+        
+        if not test_types:
+            self.console.print("❌ 找不到任何基準模型測試結果")
+            return
+        
+        # 選擇測試類型
+        if len(test_types) == 1:
+            selected_type = test_types[0]
+        else:
+            self.console.print("\n選擇要分析的測試類型:")
+            for i, test_type in enumerate(test_types, 1):
+                display_name = "Time-Based" if test_type == "time_based" else "Queue-Based"
+                self.console.print(f"{i}. {display_name}")
+            
+            choice = IntPrompt.ask(
+                "請選擇",
+                choices=[str(i) for i in range(1, len(test_types) + 1)],
+                default=1
+            )
+            selected_type = test_types[choice - 1]
+        
+        # 列出該類型的測試結果
+        type_dir = baseline_dir / selected_type
+        test_dirs = [d for d in type_dir.iterdir() if d.is_dir() and d.name.startswith("baseline_")]
+        
+        if not test_dirs:
+            self.console.print(f"❌ 找不到 {selected_type} 的測試結果")
+            return
+        
+        # 按時間排序（最新的在前）
+        test_dirs.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+        
+        # 顯示可選擇的測試結果
+        self.console.print(f"\n可用的 {selected_type} 測試結果:")
+        for i, test_dir in enumerate(test_dirs[:10], 1):  # 只顯示最新的10個
+            timestamp = datetime.fromtimestamp(test_dir.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            self.console.print(f"{i}. {test_dir.name} ({timestamp})")
+        
+        choice = IntPrompt.ask(
+            "請選擇要分析的測試結果",
+            choices=[str(i) for i in range(1, min(11, len(test_dirs) + 1))],
+            default=1
+        )
+        
+        selected_dir = test_dirs[choice - 1]
+        
+        try:
+            from test.baseline_analyzer import BaselineAnalyzer
+            
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=self.console
+            ) as progress:
+                task = progress.add_task("正在生成分析報告...", total=None)
+                
+                analyzer = BaselineAnalyzer(selected_dir)
+                results = analyzer.generate_all_analyses()
+                
+                # 顯示所有生成的文件路徑
+                for analysis_type, path in results.items():
+                    if path:
+                        self.console.print(f"✅ {analysis_type}: {path}")
+            
+        except ImportError:
+            self.console.print("❌ 找不到 BaselineAnalyzer，請確保已實作 baseline_analyzer.py")
+        except Exception as e:
+            self.console.print(f"❌ 生成分析報告時發生錯誤: {e}")
+    
+    def _show_baseline_test_summary(self, summary: Dict[str, Any], test_type: str):
+        """顯示基準模型測試摘要"""
+        self.console.print("\n" + "="*60)
+        self.console.print(f"🎉 {test_type} 參數掃描完成！", style="bold green")
+        
+        # 基本統計
+        table = Table(show_header=True, header_style="bold blue")
+        table.add_column("項目", style="dim")
+        table.add_column("值", style="bold")
+        
+        table.add_row("總測試數", str(summary['total_tests']))
+        table.add_row("成功測試", str(summary['completed_tests']))
+        table.add_row("失敗測試", str(summary['failed_tests']))
+        table.add_row("執行時間", f"{summary['total_execution_time']:.1f} 秒")
+        
+        self.console.print(table)
+        
+        # 顯示各參數的測試結果
+        if 'results_by_parameter' in summary:
+            result_table = Table(show_header=True, header_style="bold yellow")
+            result_table.add_column("機器人數量", justify="center")
+            result_table.add_column("參數值", justify="center")
+            result_table.add_column("成功/總數", justify="center")
+            result_table.add_column("平均完成率", justify="right")
+            result_table.add_column("平均等待時間", justify="right")
+            
+            for key, results in sorted(summary['results_by_parameter'].items()):
+                robot_count, param_value = key
+                completed = len([r for r in results if r['status'] == 'completed'])
+                total = len(results)
+                
+                # 計算平均指標
+                if completed > 0:
+                    avg_completion = np.mean([r.get('completion_rate', 0) for r in results if r['status'] == 'completed'])
+                    avg_wait = np.mean([r.get('avg_wait_time', 0) for r in results if r['status'] == 'completed'])
+                else:
+                    avg_completion = 0
+                    avg_wait = 0
+                
+                result_table.add_row(
+                    str(robot_count),
+                    str(param_value),
+                    f"{completed}/{total}",
+                    f"{avg_completion:.1%}",
+                    f"{avg_wait:.1f}s"
+                )
+            
+            self.console.print("\n📊 參數測試結果:")
+            self.console.print(result_table)
+        
+        # 顯示輸出目錄
+        self.console.print(f"\n📁 結果保存在: {summary.get('output_dir', 'N/A')}")
+        self.console.print("💡 提示: 使用「生成基準模型圖表」來分析詳細結果")
+        self.console.print("="*60)
+
     def analyze_time_series(self):
         """執行時間序列分析"""
         self.console.print(Panel(
@@ -893,18 +1132,20 @@ class ExperimentMenu:
                 if choice == 1:
                     self.run_capacity_test()
                 elif choice == 2:
-                    self.run_capacity_test_background()
+                    self.run_time_based_optimization()
                 elif choice == 3:
-                    self.monitor_active_tests()
+                    self.run_queue_based_optimization()
                 elif choice == 4:
                     self.generate_analysis()
                 elif choice == 5:
-                    self.analyze_time_series()
+                    self.generate_baseline_analysis()
                 elif choice == 6:
-                    self.cleanup_files()
+                    self.analyze_time_series()
                 elif choice == 7:
-                    self.show_history()
+                    self.cleanup_files()
                 elif choice == 8:
+                    self.show_history()
+                elif choice == 9:
                     self.console.print("👋 再見！")
                     # 清理所有活躍會話
                     for controller in self.active_sessions.values():
