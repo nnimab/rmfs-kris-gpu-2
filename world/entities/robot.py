@@ -986,10 +986,22 @@ class Robot(Object):
         
         # 如果從非閒置變為閒置，計算活動時間
         if self.current_state != 'idle' and new_state == 'idle':
-            if self.last_state_change_time > 0:  # 確保有有效的上次狀態變化時間
-                self.total_active_time += current_tick - self.last_state_change_time
+            if self.last_state_change_time == 0:
+                # 特殊情況：從未記錄過狀態變化時間，假設從 tick 0 開始活動
+                self.total_active_time += current_tick
                 if self.DEBUG_LEVEL >= 2:
-                    logger.debug(f"Robot {self.robotName()} active time updated: +{current_tick - self.last_state_change_time} ticks, total: {self.total_active_time} ticks")
+                    logger.debug(f"Robot {self.robotName()} active time updated (from start): +{current_tick} ticks, total: {self.total_active_time} ticks")
+            elif self.last_state_change_time > 0:  # 確保有有效的上次狀態變化時間
+                active_duration = current_tick - self.last_state_change_time
+                # 確保活動時間為正數
+                if active_duration > 0:
+                    self.total_active_time += active_duration
+                    if self.DEBUG_LEVEL >= 2:
+                        logger.debug(f"Robot {self.robotName()} active time updated: +{active_duration} ticks, total: {self.total_active_time} ticks")
+                else:
+                    # 防禦性記錄：如果出現負數活動時間
+                    if self.DEBUG_LEVEL >= 1:
+                        logger.warning(f"Robot {self.robotName()} has negative active duration: {active_duration} (current_tick: {current_tick}, last_change: {self.last_state_change_time})")
         
         # 如果從閒置變為非閒置，記錄狀態變化時間
         if self.current_state == 'idle' and new_state != 'idle':
@@ -1024,7 +1036,16 @@ class Robot(Object):
         total_time = self.total_active_time
         
         # 如果機器人當前處於非閒置狀態，加上從上次狀態變化到現在的時間
-        if self.current_state != 'idle' and self.last_state_change_time > 0:
-            total_time += current_tick - self.last_state_change_time
+        if self.current_state != 'idle':
+            # 處理第一次活動的情況（從未記錄過狀態變化）
+            if self.last_state_change_time == 0:
+                # 假設機器人從 tick 0 開始就是活動的
+                total_time += current_tick
+            elif self.last_state_change_time > 0:
+                # 正常情況：加上從上次狀態變化到現在的時間
+                active_duration = current_tick - self.last_state_change_time
+                # 確保不會有負數（防禦性編程）
+                if active_duration > 0:
+                    total_time += active_duration
             
-        return total_time
+        return max(0, total_time)  # 確保永遠不返回負數

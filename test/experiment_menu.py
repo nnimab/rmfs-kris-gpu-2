@@ -826,8 +826,8 @@ class ExperimentMenu:
                 time_ratios=time_ratios,
                 runs_per_config=runs_per_config,
                 test_ticks=test_ticks,
-                parallel=False,  # 暫時關閉並行執行以避免 Windows 問題
-                max_parallel=1
+                parallel=parallel,  # 使用用戶選擇的並行設置
+                max_parallel=max_parallel
             )
             
             # 顯示結果摘要
@@ -875,8 +875,8 @@ class ExperimentMenu:
                 queue_thresholds=queue_thresholds,
                 runs_per_config=runs_per_config,
                 test_ticks=test_ticks,
-                parallel=False,  # 暫時關閉並行執行以避免 Windows 問題
-                max_parallel=1
+                parallel=parallel,  # 使用用戶選擇的並行設置
+                max_parallel=max_parallel
             )
             
             # 顯示結果摘要
@@ -892,20 +892,51 @@ class ExperimentMenu:
         self.console.print(Panel("📊 生成基準模型分析圖表", style="bold magenta"))
         
         # 尋找基準模型測試結果
-        baseline_dir = Path("result/baseline_optimization")
+        baseline_dir = Path("test/results")
         if not baseline_dir.exists():
             self.console.print("❌ 找不到基準模型測試結果目錄")
             return
         
+        # 搜尋所有基準測試目錄
+        baseline_test_dirs = [d for d in baseline_dir.iterdir() 
+                              if d.is_dir() and d.name.startswith("baseline_")]
+        
+        if not baseline_test_dirs:
+            self.console.print("❌ 找不到任何基準模型測試結果")
+            return
+        
+        # 按時間排序（最新的在前）
+        baseline_test_dirs.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+        
+        # 分析每個測試目錄，判斷其類型
+        categorized_tests = {"time_based": [], "queue_based": []}
+        
+        for test_dir in baseline_test_dirs:
+            # 檢查子目錄來判斷測試類型
+            if (test_dir / "time_based").exists():
+                categorized_tests["time_based"].append(test_dir)
+            elif (test_dir / "queue_based").exists():
+                categorized_tests["queue_based"].append(test_dir)
+            else:
+                # 檢查是否有直接的測試結果（舊格式）
+                subdirs = [d for d in test_dir.iterdir() if d.is_dir()]
+                if subdirs:
+                    # 根據子目錄名稱判斷類型
+                    first_subdir = subdirs[0].name
+                    if first_subdir.startswith("tb_"):
+                        categorized_tests["time_based"].append(test_dir)
+                    elif first_subdir.startswith("qb_"):
+                        categorized_tests["queue_based"].append(test_dir)
+        
         # 列出可用的測試類型
         test_types = []
-        if (baseline_dir / "time_based").exists():
+        if categorized_tests["time_based"]:
             test_types.append("time_based")
-        if (baseline_dir / "queue_based").exists():
+        if categorized_tests["queue_based"]:
             test_types.append("queue_based")
         
         if not test_types:
-            self.console.print("❌ 找不到任何基準模型測試結果")
+            self.console.print("❌ 找不到任何有效的基準模型測試結果")
             return
         
         # 選擇測試類型
@@ -915,7 +946,8 @@ class ExperimentMenu:
             self.console.print("\n選擇要分析的測試類型:")
             for i, test_type in enumerate(test_types, 1):
                 display_name = "Time-Based" if test_type == "time_based" else "Queue-Based"
-                self.console.print(f"{i}. {display_name}")
+                count = len(categorized_tests[test_type])
+                self.console.print(f"{i}. {display_name} ({count} 個測試)")
             
             choice = IntPrompt.ask(
                 "請選擇",
@@ -925,29 +957,24 @@ class ExperimentMenu:
             selected_type = test_types[choice - 1]
         
         # 列出該類型的測試結果
-        type_dir = baseline_dir / selected_type
-        test_dirs = [d for d in type_dir.iterdir() if d.is_dir() and d.name.startswith("baseline_")]
-        
-        if not test_dirs:
-            self.console.print(f"❌ 找不到 {selected_type} 的測試結果")
-            return
-        
-        # 按時間排序（最新的在前）
-        test_dirs.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+        available_tests = categorized_tests[selected_type]
         
         # 顯示可選擇的測試結果
         self.console.print(f"\n可用的 {selected_type} 測試結果:")
-        for i, test_dir in enumerate(test_dirs[:10], 1):  # 只顯示最新的10個
+        for i, test_dir in enumerate(available_tests[:10], 1):  # 只顯示最新的10個
             timestamp = datetime.fromtimestamp(test_dir.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
             self.console.print(f"{i}. {test_dir.name} ({timestamp})")
         
         choice = IntPrompt.ask(
             "請選擇要分析的測試結果",
-            choices=[str(i) for i in range(1, min(11, len(test_dirs) + 1))],
+            choices=[str(i) for i in range(1, min(11, len(available_tests) + 1))],
             default=1
         )
         
-        selected_dir = test_dirs[choice - 1]
+        selected_test_dir = available_tests[choice - 1]
+        
+        # 分析器應該使用包含 workspaces 的目錄
+        analysis_dir = selected_test_dir
         
         try:
             from test.baseline_analyzer import BaselineAnalyzer
@@ -959,7 +986,7 @@ class ExperimentMenu:
             ) as progress:
                 task = progress.add_task("正在生成分析報告...", total=None)
                 
-                analyzer = BaselineAnalyzer(selected_dir)
+                analyzer = BaselineAnalyzer(analysis_dir)
                 results = analyzer.generate_all_analyses()
                 
                 # 顯示所有生成的文件路徑

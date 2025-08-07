@@ -25,17 +25,39 @@ from lib.logger import get_logger
 class BaselineTestController:
     """基準模型測試控制器"""
     
-    def __init__(self):
-        """初始化控制器"""
-        self.base_output_dir = Path("result/baseline_optimization")
+    def __init__(self, base_output_dir: Optional[str] = None):
+        """
+        初始化控制器
+        
+        Args:
+            base_output_dir: 基礎輸出目錄路徑，如果為 None 則使用預設路徑
+        """
+        self.instance_id = str(uuid.uuid4())[:8]
+        self.test_start_time = datetime.now()
+        
+        # 設定輸出目錄 - 使用與容量測試相同的結構
+        if base_output_dir is None:
+            timestamp = self.test_start_time.strftime("%Y%m%d_%H%M%S")
+            self.base_output_dir = Path(__file__).parent / "results" / f"baseline_{timestamp}_{self.instance_id}"
+        else:
+            self.base_output_dir = Path(base_output_dir)
+        
         self.base_output_dir.mkdir(parents=True, exist_ok=True)
         
         # 設置日誌
         log_file = self.base_output_dir / "baseline_test.log"
         self.logger = get_logger(log_file_path=str(log_file))
         
+        # 初始化隔離管理器
+        from test.isolation_manager import IsolationManager
+        self.isolation_manager = IsolationManager(self.base_output_dir, self.logger)
+        
         # 測試結果儲存
         self.test_results = {}
+        
+        self.logger.info(f"基準模型測試控制器初始化完成")
+        self.logger.info(f"實例 ID: {self.instance_id}")
+        self.logger.info(f"輸出目錄: {self.base_output_dir}")
     
     def run_time_based_sweep(self, 
                            robot_counts: List[int],
@@ -63,9 +85,8 @@ class BaselineTestController:
         self.logger.info(f"時間配比: {time_ratios}")
         self.logger.info(f"每個配置運行次數: {runs_per_config}")
         
-        # 創建測試會話
-        session_id = f"baseline_time_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
-        session_dir = self.base_output_dir / "time_based" / session_id
+        # 創建測試會話目錄
+        session_dir = self.base_output_dir / "time_based"
         session_dir.mkdir(parents=True, exist_ok=True)
         
         # 準備所有測試配置
@@ -81,7 +102,7 @@ class BaselineTestController:
                         'time_ratio': time_ratio,
                         'run_index': run_idx,
                         'test_ticks': test_ticks,
-                        'output_dir': str(session_dir / test_id)
+                        'base_output_dir': str(self.base_output_dir)
                     }
                     test_configs.append(config)
         
@@ -121,9 +142,8 @@ class BaselineTestController:
         self.logger.info(f"隊列閾值: {queue_thresholds}")
         self.logger.info(f"每個配置運行次數: {runs_per_config}")
         
-        # 創建測試會話
-        session_id = f"baseline_queue_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
-        session_dir = self.base_output_dir / "queue_based" / session_id
+        # 創建測試會話目錄
+        session_dir = self.base_output_dir / "queue_based"
         session_dir.mkdir(parents=True, exist_ok=True)
         
         # 準備所有測試配置
@@ -139,7 +159,7 @@ class BaselineTestController:
                         'queue_threshold': threshold,
                         'run_index': run_idx,
                         'test_ticks': test_ticks,
-                        'output_dir': str(session_dir / test_id)
+                        'base_output_dir': str(self.base_output_dir)
                     }
                     test_configs.append(config)
         
@@ -231,38 +251,38 @@ class BaselineTestController:
     def _run_single_test(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """執行單個測試"""
         test_id = config['test_id']
-        self.logger.info(f"開始測試: {test_id}")
+        robot_count = config['robot_count']
         
-        # 創建輸出目錄
-        output_dir = Path(config['output_dir'])
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 設置環境變數
-        env = os.environ.copy()
-        env['ROBOT_COUNT'] = str(config['robot_count'])
-        env['SIMULATION_ID'] = test_id
-        
-        # 準備評估命令
-        python_exe = sys.executable
-        
-        # 構建控制器參數
-        if config['controller'] == 'time_based':
-            controller_args = f"time_based:{config['time_ratio']}"
-        else:  # queue_based
-            controller_args = f"queue_based:{config['queue_threshold']}"
-        
-        eval_args = [
-            python_exe, 'evaluate.py',
-            '--controllers', controller_args,
-            '--ticks', str(config['test_ticks']),
-            '--runs', '1',
-            '--output-dir', str(output_dir),
-            '--robot-count', str(config['robot_count'])
-        ]
-        
-        # 執行評估
-        start_time = time.time()
         try:
+            self.logger.info(f"開始測試: {test_id}")
+            
+            # 創建隔離工作空間
+            isolated_paths = self.isolation_manager.create_isolated_workspace(robot_count, test_id)
+            
+            # 設置環境變數
+            env = os.environ.copy()
+            env.update(self.isolation_manager.get_isolated_env_vars(test_id))
+            
+            # 準備評估命令
+            python_exe = sys.executable
+            
+            # 構建控制器參數
+            if config['controller'] == 'time_based':
+                controller_args = f"time_based:{config['time_ratio']}"
+            else:  # queue_based
+                controller_args = f"queue_based:{config['queue_threshold']}"
+            
+            eval_args = [
+                python_exe, 'evaluate.py',
+                '--controllers', controller_args,
+                '--ticks', str(config['test_ticks']),
+                '--runs', '1',
+                '--output-dir', isolated_paths['results_dir'],
+                '--robot-count', str(robot_count)
+            ]
+            
+            # 執行評估
+            start_time = time.time()
             process = subprocess.Popen(
                 eval_args,
                 env=env,
@@ -279,13 +299,15 @@ class BaselineTestController:
                 # 嘗試讀取評估結果
                 result = {
                     'test_id': test_id,
+                    'robot_count': robot_count,
                     'status': 'completed',
                     'execution_time': execution_time,
+                    'workspace_path': isolated_paths['workspace_root'],
                     **config
                 }
                 
                 # 讀取評估結果文件
-                results_file = output_dir / 'evaluation_results.json'
+                results_file = Path(isolated_paths['results_dir']) / 'evaluation_results.json'
                 if results_file.exists():
                     with open(results_file, 'r', encoding='utf-8') as f:
                         eval_results = json.load(f)
@@ -302,13 +324,16 @@ class BaselineTestController:
             else:
                 result = {
                     'test_id': test_id,
+                    'robot_count': robot_count,
                     'status': 'failed',
                     'execution_time': execution_time,
                     'error_code': process.returncode,
                     'stderr': stderr,
+                    'workspace_path': isolated_paths['workspace_root'],
                     **config
                 }
                 self.logger.error(f"測試失敗: {test_id}, 錯誤碼: {process.returncode}")
+                self.logger.error(f"錯誤輸出: {stderr}")
             
             return result
             
@@ -316,6 +341,7 @@ class BaselineTestController:
             self.logger.error(f"執行測試時發生異常 {test_id}: {e}")
             return {
                 'test_id': test_id,
+                'robot_count': robot_count,
                 'status': 'error',
                 'error': str(e),
                 **config
@@ -345,7 +371,7 @@ class BaselineTestController:
         # 生成摘要
         summary = {
             'test_type': test_type,
-            'session_id': session_dir.name,
+            'session_id': self.base_output_dir.name,
             'total_tests': len(results),
             'completed_tests': completed_tests,
             'failed_tests': failed_tests,
@@ -368,7 +394,9 @@ class BaselineTestController:
 # 定義一個頂層函數來支援 Windows 下的多進程
 def run_single_test_wrapper(config: Dict[str, Any]) -> Dict[str, Any]:
     """包裝函數，用於在 Windows 下支援多進程"""
-    controller = BaselineTestController()
+    # 從配置中取得基礎輸出目錄
+    base_dir = config.get('base_output_dir')
+    controller = BaselineTestController(base_output_dir=base_dir)
     return controller._run_single_test(config)
 
 
