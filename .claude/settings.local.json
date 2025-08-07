@@ -48,7 +48,8 @@
       "Bash(for:*)",
       "Bash(echo:*)",
       "Bash(do echo -n \"Run $i: \")",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "mcp__serena__think_about_collected_information"
     ],
     "deny": []
   }
