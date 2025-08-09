@@ -18,6 +18,7 @@ import json
 from datetime import datetime
 import time
 from typing import Optional, List, Dict, Any
+import numpy as np
 
 # 加入專案根目錄到 Python 路徑
 project_root = Path(__file__).parent.parent
@@ -418,10 +419,10 @@ class ExperimentMenu:
         """獲取要測試的機器人數量"""
         self.console.print("\n📊 請設定要測試的機器人數量:")
         
-        use_default = Confirm.ask("使用預設數量 [20, 25, 30, 35, 40]？", default=True)
+        use_default = Confirm.ask("使用預設數量 [25, 30]？", default=True)
         
         if use_default:
-            return [20, 25, 30, 35, 40]
+            return [25, 30]
         
         robot_counts = []
         self.console.print("請輸入機器人數量（輸入 0 結束）:")
@@ -442,7 +443,7 @@ class ExperimentMenu:
         
         if not robot_counts:
             self.console.print("⚠️  未設定任何數量，使用預設值")
-            return [20, 25, 30, 35, 40]
+            return [25, 30]
         
         robot_counts.sort()
         return robot_counts
@@ -794,7 +795,7 @@ class ExperimentMenu:
         self.console.print(Panel("⚡ Time-Based 參數掃描", style="bold yellow"))
         
         # 測試參數設定
-        robot_counts = [30, 35]
+        robot_counts = [25, 30]
         time_ratios = ["50:50", "60:40", "65:35", "70:30", "75:25", "80:20"]
         runs_per_config = self._get_runs_per_config()
         test_ticks = self._get_test_ticks()
@@ -843,7 +844,7 @@ class ExperimentMenu:
         self.console.print(Panel("📊 Queue-Based 參數掃描", style="bold cyan"))
         
         # 測試參數設定
-        robot_counts = [30, 35]
+        robot_counts = [25, 30]
         queue_thresholds = [2, 3, 4, 5, 6]
         runs_per_config = self._get_runs_per_config()
         test_ticks = self._get_test_ticks()
@@ -892,14 +893,23 @@ class ExperimentMenu:
         self.console.print(Panel("📊 生成基準模型分析圖表", style="bold magenta"))
         
         # 尋找基準模型測試結果
-        baseline_dir = Path("test/results")
+        baseline_dir = Path(__file__).parent / "results"
         if not baseline_dir.exists():
             self.console.print("❌ 找不到基準模型測試結果目錄")
             return
         
         # 搜尋所有基準測試目錄
-        baseline_test_dirs = [d for d in baseline_dir.iterdir() 
-                              if d.is_dir() and d.name.startswith("baseline_")]
+        # 支援新舊命名規則：
+        # - 新：queue_based_*、time_based_*
+        # - 舊：baseline_* 或包含 time_based/、queue_based 子資料夾
+        baseline_test_dirs = [
+            d for d in baseline_dir.iterdir()
+            if d.is_dir() and (
+                d.name.startswith(("baseline_", "queue_based_", "time_based_"))
+                or (d / "time_based").exists()
+                or (d / "queue_based").exists()
+            )
+        ]
         
         if not baseline_test_dirs:
             self.console.print("❌ 找不到任何基準模型測試結果")
@@ -912,21 +922,34 @@ class ExperimentMenu:
         categorized_tests = {"time_based": [], "queue_based": []}
         
         for test_dir in baseline_test_dirs:
-            # 檢查子目錄來判斷測試類型
+            name = test_dir.name
+            # 先用資料夾名判斷
+            if name.startswith("time_based_") or name.startswith("tb_"):
+                categorized_tests["time_based"].append(test_dir)
+                continue
+            if name.startswith("queue_based_") or name.startswith("qb_"):
+                categorized_tests["queue_based"].append(test_dir)
+                continue
+            if name.startswith("baseline_"):
+                # baseline_ 可能同時包含兩種，往下探測
+                pass
+            
+            # 其次用子資料夾探測
             if (test_dir / "time_based").exists():
                 categorized_tests["time_based"].append(test_dir)
-            elif (test_dir / "queue_based").exists():
+            if (test_dir / "queue_based").exists():
                 categorized_tests["queue_based"].append(test_dir)
-            else:
-                # 檢查是否有直接的測試結果（舊格式）
-                subdirs = [d for d in test_dir.iterdir() if d.is_dir()]
-                if subdirs:
-                    # 根據子目錄名稱判斷類型
-                    first_subdir = subdirs[0].name
-                    if first_subdir.startswith("tb_"):
+            
+            # 最後檢查直接子資料夾命名（舊格式）
+            subdirs = [d for d in test_dir.iterdir() if d.is_dir()]
+            if subdirs:
+                for sub in subdirs:
+                    if sub.name.startswith(("tb_", "time_based_")):
                         categorized_tests["time_based"].append(test_dir)
-                    elif first_subdir.startswith("qb_"):
+                        break
+                    if sub.name.startswith(("qb_", "queue_based_")):
                         categorized_tests["queue_based"].append(test_dir)
+                        break
         
         # 列出可用的測試類型
         test_types = []
@@ -959,19 +982,32 @@ class ExperimentMenu:
         # 列出該類型的測試結果
         available_tests = categorized_tests[selected_type]
         
-        # 顯示可選擇的測試結果
+        # 顯示可選擇的測試結果（只顯示匹配類型且存在實際結果的）
+        filtered_tests: List[Path] = []
+        for d in available_tests:
+            if selected_type == "time_based":
+                if d.name.startswith(("time_based_", "tb_")) or (d / "time_based").exists():
+                    filtered_tests.append(d)
+            else:
+                if d.name.startswith(("queue_based_", "qb_")) or (d / "queue_based").exists():
+                    filtered_tests.append(d)
+
+        # 回退：若過濾後為空，仍使用原列表（避免過度嚴格造成空）
+        if not filtered_tests:
+            filtered_tests = available_tests
+
         self.console.print(f"\n可用的 {selected_type} 測試結果:")
-        for i, test_dir in enumerate(available_tests[:10], 1):  # 只顯示最新的10個
+        for i, test_dir in enumerate(filtered_tests[:10], 1):  # 只顯示最新的10個
             timestamp = datetime.fromtimestamp(test_dir.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
             self.console.print(f"{i}. {test_dir.name} ({timestamp})")
         
         choice = IntPrompt.ask(
             "請選擇要分析的測試結果",
-            choices=[str(i) for i in range(1, min(11, len(available_tests) + 1))],
+            choices=[str(i) for i in range(1, min(11, len(filtered_tests) + 1))],
             default=1
         )
         
-        selected_test_dir = available_tests[choice - 1]
+        selected_test_dir = filtered_tests[choice - 1]
         
         # 分析器應該使用包含 workspaces 的目錄
         analysis_dir = selected_test_dir

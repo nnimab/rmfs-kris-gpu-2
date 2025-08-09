@@ -187,7 +187,11 @@ class CapacityAnalyzer:
                                 'avg_wait_time': eval_data.get('avg_wait_time', 0),
                                 'total_energy': eval_data.get('total_energy', 0),
                                 'energy_per_order': eval_data.get('energy_per_order', 0),
-                                'robot_utilization': eval_data.get('robot_utilization', 0),
+                                # 修正舊資料單位：若大於 1，當作舊格式，乘上 0.15 轉為 0~1
+                                'robot_utilization': (
+                                    (eval_data.get('robot_utilization', 0) * 0.15)
+                                    if eval_data.get('robot_utilization', 0) > 1 else eval_data.get('robot_utilization', 0)
+                                ),
                                 'signal_switch_count': eval_data.get('signal_switch_count', 0),
                                 'avg_traffic_rate': eval_data.get('avg_traffic_rate', 0)
                             })
@@ -858,29 +862,29 @@ class CapacityAnalyzer:
         """創建效率分析圖"""
         try:
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-            
+
             # 計算效率指標
             df_efficiency = df.copy()
             df_efficiency['orders_per_robot'] = df_efficiency['completed_orders'] / df_efficiency['robot_count']
-            
+
             grouped = df_efficiency.groupby('robot_count').agg({
                 'orders_per_robot': 'median',
                 'robot_utilization': 'median'
             })
-            
+
             robot_counts = grouped.index
-            
+
             # 每機器人完成訂單數
             ax1.bar(robot_counts, grouped['orders_per_robot'], color='skyblue', alpha=0.7)
             ax1.set_xlabel('機器人數量')
             ax1.set_ylabel('每機器人完成訂單數')
             ax1.set_title('機器人效率分析 (中位數)')
             ax1.grid(True, alpha=0.3)
-            
+
             # 添加數值標籤
             for i, v in enumerate(grouped['orders_per_robot']):
                 ax1.text(robot_counts[i], v + 0.1, f'{v:.1f}', ha='center', va='bottom')
-            
+
             # 機器人利用率
             ax2.bar(robot_counts, grouped['robot_utilization'], color='lightcoral', alpha=0.7)
             ax2.set_xlabel('機器人數量')
@@ -888,19 +892,19 @@ class CapacityAnalyzer:
             ax2.set_title('機器人利用率分析 (中位數)')
             ax2.grid(True, alpha=0.3)
             ax2.set_ylim(0, 1.1)
-            
+
             # 添加數值標籤
             for i, v in enumerate(grouped['robot_utilization']):
                 ax2.text(robot_counts[i], v + 0.02, f'{v:.2f}', ha='center', va='bottom')
-            
+
             plt.tight_layout()
-            
+
             chart_file = output_dir / 'efficiency_analysis.png'
             plt.savefig(chart_file, dpi=300, bbox_inches='tight')
             plt.close()
-            
+
             return str(chart_file)
-            
+
         except Exception as e:
             self.logger.error(f"創建效率圖表時發生錯誤: {e}")
             return None

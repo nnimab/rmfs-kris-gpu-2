@@ -24,6 +24,21 @@ install_apt_packages() {
   fi
 }
 
+ensure_screen() {
+  if command -v screen >/dev/null 2>&1; then return 0; fi
+  log "嘗試安裝 screen..."
+  if command -v apt >/dev/null 2>&1; then
+    sudo apt update || apt update || true
+    sudo apt install -y screen || true
+  elif command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y screen || true
+  elif command -v yum >/dev/null 2>&1; then
+    sudo yum install -y screen || true
+  elif command -v apk >/dev/null 2>&1; then
+    sudo apk add --no-cache screen || true
+  fi
+}
+
 configure_locale() {
   log "配置中文 locale 與環境變數"
   if command -v locale-gen >/dev/null 2>&1; then
@@ -101,9 +116,10 @@ start_screen_experiment() {
     return 0
   fi
 
+  ensure_screen
   if ! command -v screen >/dev/null 2>&1; then
-    log "screen 未安裝，略過背景啟動；直接前台執行"
-    exec "$PY_BIN" test/experiment_menu.py
+    log "無法自動安裝 screen，請以 root 權限執行或手動安裝：apt install -y screen"
+    exit 1
   fi
 
   # 如果同名會話存在，先關閉

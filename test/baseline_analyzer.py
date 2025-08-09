@@ -45,6 +45,11 @@ class BaselineAnalyzer:
         self.analysis_dir = self.session_dir / "analysis"
         self.analysis_dir.mkdir(exist_ok=True)
         
+        # 資料清洗與相容設定
+        self.enable_cleaning: bool = True
+        self.outliers_removed: list = []
+        self.cleaning_stats: dict = {}
+
         # 載入測試摘要
         self.summary = self._load_summary()
         
@@ -180,10 +185,21 @@ class BaselineAnalyzer:
             # 從評估結果中提取關鍵指標
             if eval_data.get('results'):
                 metrics = eval_data['results'][0]
+                result['completed_orders'] = metrics.get('completed_orders', 0)
+                result['total_orders'] = metrics.get('total_orders', 0)
                 result['completion_rate'] = metrics.get('completion_rate', 0)
                 result['avg_wait_time'] = metrics.get('avg_wait_time', 0)
-                result['robot_utilization'] = metrics.get('robot_utilization', 0)
+                # 相容舊資料：>1 視為舊單位（步數/秒），乘 0.15 校正到 0~1
+                ru = metrics.get('robot_utilization', 0)
+                result['robot_utilization'] = (ru * 0.15) if isinstance(ru, (int, float)) and ru > 1 else ru
                 result['total_energy'] = metrics.get('total_energy', 0)
+                # 優先用 evaluation 的 energy_per_order；若不存在，fallback 由 total_energy/完成訂單
+                epo = metrics.get('energy_per_order', None)
+                if epo is None or (isinstance(epo, float) and np.isnan(epo)):
+                    co = result.get('completed_orders', 0)
+                    result['energy_per_order'] = (result['total_energy'] / co) if co else np.nan
+                else:
+                    result['energy_per_order'] = epo
             
             return result
             
@@ -223,10 +239,19 @@ class BaselineAnalyzer:
                 test_record['parameter_type'] = 'queue_threshold'
             
             # 提取性能指標
+            test_record['completed_orders'] = result.get('completed_orders', 0)
+            test_record['total_orders'] = result.get('total_orders', 0)
             test_record['completion_rate'] = result.get('completion_rate', 0)
             test_record['avg_wait_time'] = result.get('avg_wait_time', 0)
             test_record['robot_utilization'] = result.get('robot_utilization', 0)
             test_record['total_energy'] = result.get('total_energy', 0)
+            # energy_per_order 若缺失則以總能耗/完成訂單估算
+            epo = result.get('energy_per_order', None)
+            if epo is None or (isinstance(epo, float) and np.isnan(epo)):
+                co = test_record['completed_orders']
+                test_record['energy_per_order'] = (test_record['total_energy'] / co) if co else np.nan
+            else:
+                test_record['energy_per_order'] = epo
             test_record['execution_time'] = result.get('execution_time', 0)
             
             all_results.append(test_record)
@@ -239,10 +264,103 @@ class BaselineAnalyzer:
                                         'robot_utilization', 'total_energy', 'execution_time'])
         
         return pd.DataFrame(all_results)
+
+    # --------------------- 資料清洗（與 CapacityAnalyzer 對齊的邏輯，門檻同等嚴格） ---------------------
+    def _clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """對 baseline 結果進行清洗，群組為 (robot_count, parameter)。"""
+        self.outliers_removed = []
+        self.cleaning_stats = {}
+
+        if df.empty:
+            return df
+
+        df_work = df.copy()
+
+        # 1) 訂單生成異常（全域）：total_orders < 0.75 × max_total_orders
+        if 'total_orders' in df_work.columns and df_work['total_orders'].notna().any():
+            max_total_orders = df_work['total_orders'].max()
+            order_threshold = max_total_orders * 0.75
+            mask_order = df_work['total_orders'] < order_threshold
+        else:
+            mask_order = pd.Series(False, index=df_work.index)
+            order_threshold = np.nan
+
+        # 2) 群組內異常（每個 robot_count×parameter，n≥5 用 trimmed-mean 門檻 0.85）
+        mask_group = pd.Series(False, index=df_work.index)
+        group_keys = ['robot_count', 'parameter'] if 'parameter' in df_work.columns else ['robot_count']
+        for keys, group in df_work.groupby(group_keys):
+            if 'completed_orders' not in group.columns:
+                continue
+            n = len(group)
+            if n >= 5:
+                orders = group['completed_orders'].values
+                trimmed_mean = np.mean(np.sort(orders)[1:-1]) if n > 2 else np.mean(orders)
+                bad_idx = group[group['completed_orders'] < trimmed_mean * 0.85].index
+                mask_group.loc[bad_idx] = True
+                for idx in bad_idx:
+                    row = df_work.loc[idx]
+                    self.outliers_removed.append({
+                        'robot_count': int(row.get('robot_count', 0)),
+                        'parameter': row.get('parameter', ''),
+                        'completed_orders': int(row.get('completed_orders', 0)),
+                        'total_orders': int(row.get('total_orders', 0)),
+                        'completion_rate': float(row.get('completion_rate', 0)),
+                        'reason': f'群組內異常 (n={n}, 低於 trimmed-mean 的 85%)'
+                    })
+
+        # 3) 跨參數的一般性能異常（同一 robot_count）
+        mask_perf = pd.Series(False, index=df_work.index)
+        if 'completed_orders' in df_work.columns:
+            med_by_robot = df_work.groupby('robot_count')['completed_orders'].median()
+            for rc, group in df_work.groupby('robot_count'):
+                median_orders = med_by_robot.get(rc, np.nan)
+                if np.isnan(median_orders):
+                    continue
+                cond = (group['completion_rate'] < 0.70) & (group['completed_orders'] < median_orders * 0.5)
+                bad_idx = group[cond].index
+                mask_perf.loc[bad_idx] = True
+                for idx in bad_idx:
+                    row = df_work.loc[idx]
+                    self.outliers_removed.append({
+                        'robot_count': int(row.get('robot_count', 0)),
+                        'parameter': row.get('parameter', ''),
+                        'completed_orders': int(row.get('completed_orders', 0)),
+                        'total_orders': int(row.get('total_orders', 0)),
+                        'completion_rate': float(row.get('completion_rate', 0)),
+                        'reason': '一般性能異常 (完成率<70% 且 完成數低於組內中位數的50%)'
+                    })
+
+        # 合併遮罩
+        combined_mask = mask_order | mask_group | mask_perf
+        cleaned_df = df_work[~combined_mask].copy()
+
+        # 彙總清洗統計（overall 與 by robot_count）
+        self.cleaning_stats['overall'] = {
+            'original_count': int(len(df_work)),
+            'cleaned_count': int(len(cleaned_df)),
+            'removed_count': int(len(df_work) - len(cleaned_df)),
+            'removal_rate': (len(df_work) - len(cleaned_df)) / len(df_work) * 100,
+            'order_threshold': order_threshold
+        }
+        for rc, group in df_work.groupby('robot_count'):
+            cleaned_group = cleaned_df[cleaned_df['robot_count'] == rc]
+            self.cleaning_stats[int(rc)] = {
+                'original_count': int(len(group)),
+                'cleaned_count': int(len(cleaned_group)),
+                'removed_count': int(len(group) - len(cleaned_group)),
+                'removal_rate': (len(group) - len(cleaned_group)) / len(group) * 100 if len(group) > 0 else 0,
+                'median_before': float(group['completed_orders'].median()) if 'completed_orders' in group else np.nan,
+                'median_after': float(cleaned_group['completed_orders'].median()) if 'completed_orders' in cleaned_group and len(cleaned_group) > 0 else np.nan,
+            }
+
+        return cleaned_df
     
     def generate_parameter_comparison_chart(self) -> str:
         """生成參數比較圖表"""
         df = self._load_all_results()
+        # 清洗（若啟用）
+        if self.enable_cleaning and not df.empty:
+            df = self._clean_data(df)
         
         # 檢查是否有數據
         if df.empty:
@@ -273,7 +391,7 @@ class BaselineAnalyzer:
         # 定義顏色映射
         colors = plt.cm.Set1(np.linspace(0, 1, len(robot_counts)))
         
-        # 1. 完成率 vs 參數
+        # 1. 完成率 vs 參數（顯示樣本數 n）
         ax1 = axes[0, 0]
         for i, robot_count in enumerate(robot_counts):
             subset = df[df['robot_count'] == robot_count]
@@ -281,6 +399,7 @@ class BaselineAnalyzer:
             grouped = subset.groupby('parameter').agg({
                 'completion_rate': ['mean', 'std']
             })
+            counts = subset.groupby('parameter').size()
             
             x = grouped.index
             y = grouped['completion_rate']['mean']
@@ -288,6 +407,10 @@ class BaselineAnalyzer:
             
             ax1.errorbar(x, y, yerr=yerr, marker='o', label=f'{robot_count} 機器人',
                         color=colors[i], capsize=5, markersize=8)
+            # 在每個點上標註 n
+            for xi, yi in zip(x, y):
+                n = int(counts.get(xi, 0))
+                ax1.text(xi, yi + 0.01, f'n={n}', ha='center', va='bottom', fontsize=8)
         
         ax1.set_xlabel(self._get_parameter_label())
         ax1.set_ylabel('訂單完成率')
@@ -339,15 +462,10 @@ class BaselineAnalyzer:
         ax3.grid(True, alpha=0.3)
         ax3.set_ylim(0, 1.1)
         
-        # 4. 能源效率 vs 參數
+        # 4. 能源效率 vs 參數（每訂單能源消耗，越低越好）
         ax4 = axes[1, 1]
         for i, robot_count in enumerate(robot_counts):
             subset = df[df['robot_count'] == robot_count]
-            # 計算每完成訂單的能源消耗
-            subset['energy_per_order'] = subset.apply(
-                lambda row: row['total_energy'] / (row['completion_rate'] * 1000) if row['completion_rate'] > 0 else np.nan,
-                axis=1
-            )
             
             grouped = subset.groupby('parameter').agg({
                 'energy_per_order': ['mean', 'std']

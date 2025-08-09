@@ -11,6 +11,7 @@ import time
 import signal
 import sys
 import numpy as np
+from lib.constant import TICK_TO_SECOND
 import pandas as pd
 import pickle
 from datetime import datetime
@@ -275,6 +276,8 @@ class ControllerEvaluator:
                             # 向後相容：如果沒有新方法，使用舊屬性
                             total_active_time += robot.total_active_time
                     metrics['total_robot_active_time'] = total_active_time
+
+                    #（移除抽樣狀態占比邏輯）
                     
                     # 收集等待時間
                     # 收集所有機器人的等待事件（與訓練保持一致）
@@ -344,6 +347,8 @@ class ControllerEvaluator:
             else:
                 avg_wait_time = 0
             robot_utilization = metrics['total_robot_active_time'] / (final_tick * metrics['total_robots']) if metrics['total_robots'] > 0 else 0
+            # 單位校正：步數/秒 → 乘上 TICK_TO_SECOND（例如 0.15），讓結果落在 0~1 範圍
+            robot_utilization = robot_utilization * TICK_TO_SECOND
             energy_per_order = metrics['total_energy_consumed'] / metrics['completed_orders'] if metrics['completed_orders'] > 0 else 0
             
             # 組裝結果
