@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import List, Optional, TYPE_CHECKING, Dict
-from ai.deep_q_network import DeepQNetwork
 from ai.traffic_controller import TrafficController, TrafficControllerFactory
 from ai.controllers.nerl_controller import NEController
 from lib.file import *
@@ -166,9 +165,18 @@ class IntersectionManager:
     @staticmethod
     def createNewModel(intersection: Intersection, state):
         state_size = len(state)
-        return DeepQNetwork(state_size=state_size,
-                            action_size=3,
-                            model_name=intersection.RL_model_name)
+        # 延遲載入，避免在非 DQN 情境下強制依賴 torch
+        try:
+            from ai.deep_q_network import DeepQNetwork  # type: ignore
+        except Exception as import_error:
+            raise ImportError(
+                "DeepQNetwork 未安裝或其相依性（如 torch）缺失；僅在使用 DQN 控制器時才需要。"
+            ) from import_error
+        return DeepQNetwork(
+            state_size=state_size,
+            action_size=3,
+            model_name=intersection.RL_model_name,
+        )
 
     def updateDirectionUsingDQN(self, tick):
         if self.current_controller_type == "dqn":

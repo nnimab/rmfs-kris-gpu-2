@@ -173,6 +173,8 @@ class CapacityTestController:
             env.update(self.isolation_manager.get_isolated_env_vars(test_id))
             # 標記為容量測試模式，讓 evaluate.py 輸出進度到 stdout
             env['CAPACITY_TEST_MODE'] = '1'
+            # 使用既有訂單資料，禁止在並行時重生/合併訂單
+            env['USE_EXISTING_ORDERS'] = '1'
             
             # 準備評估參數
 

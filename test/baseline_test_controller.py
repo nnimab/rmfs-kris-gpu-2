@@ -262,6 +262,8 @@ class BaselineTestController:
             # 設置環境變數
             env = os.environ.copy()
             env.update(self.isolation_manager.get_isolated_env_vars(test_id))
+            # 使用既有訂單資料，禁止在並行時重生/合併訂單
+            env['USE_EXISTING_ORDERS'] = '1'
             
             # 準備評估命令
             python_exe = sys.executable

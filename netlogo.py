@@ -15,18 +15,40 @@ performance_reporter = None
 
 def get_state_filename():
     """
-    根據環境變數生成唯一的狀態檔案名稱
+    取得狀態檔案路徑（工作空間隔離優先）。
     優先順序：
-    1. 環境變數 SIMULATION_ID (例如: SIMULATION_ID=exp1 -> states/netlogo_exp1.state)
-    2. 預設使用 'states/netlogo.state'
-    所有狀態檔案都存放在 states/ 資料夾中
+    1) 環境變數 NETLOGO_STATE_FILE（完整檔案路徑）
+    2) 環境變數 NETLOGO_STATE_DIR + SIMULATION_ID（或 netlogo.state）
+    3) 專案根目錄的 states/ + SIMULATION_ID（或 netlogo.state）
     """
-    # 確保 states 資料夾存在
-    state_dir = 'states'
-    if not os.path.exists(state_dir):
-        os.makedirs(state_dir)
-    
+    # 1) 直接指定完整路徑
+    env_file = os.environ.get('NETLOGO_STATE_FILE')
+    if env_file:
+        try:
+            os.makedirs(os.path.dirname(env_file), exist_ok=True)
+        except Exception:
+            pass
+        return env_file
+
     sim_id = os.environ.get('SIMULATION_ID', '')
+
+    # 2) 指定目錄 + 自動命名
+    env_dir = os.environ.get('NETLOGO_STATE_DIR')
+    if env_dir:
+        try:
+            os.makedirs(env_dir, exist_ok=True)
+        except Exception:
+            pass
+        if sim_id:
+            return os.path.join(env_dir, f'netlogo_{sim_id}.state')
+        return os.path.join(env_dir, 'netlogo.state')
+
+    # 3) 專案根目錄的預設 states 目錄
+    state_dir = 'states'
+    try:
+        os.makedirs(state_dir, exist_ok=True)
+    except Exception:
+        pass
     if sim_id:
         return os.path.join(state_dir, f'netlogo_{sim_id}.state')
     return os.path.join(state_dir, 'netlogo.state')
@@ -34,9 +56,13 @@ def get_state_filename():
 def setup():
     try:
         # Initialize the simulation warehouse
-        assignment_path = PARENT_DIRECTORY + f"/data/input/assign_order_{os.getpid()}.csv"
+        # 使用隔離環境變數指定的 assign 檔案，否則回退到預設 PID 版本
+        assignment_path = os.environ.get('ASSIGN_ORDER_CSV', PARENT_DIRECTORY + f"/data/input/assign_order_{os.getpid()}.csv")
         if os.path.exists(assignment_path):
-            os.remove(assignment_path)
+            try:
+                os.remove(assignment_path)
+            except Exception:
+                pass
         warehouse = Warehouse()
         
         # Populate the warehouse with objects and connections
@@ -236,6 +262,7 @@ def set_dqn_controller(exploration_rate=0.6, load_model_tick=None):
     # 如果設置成功且指定了模型，嘗試加載模型
     if result and load_model_tick is not None:
         try:
+            state_file = get_state_filename()
             with open(state_file, 'rb') as file:
                 warehouse: Warehouse = pickle.load(file)
                 
@@ -274,6 +301,7 @@ def set_nerl_controller(exploration_rate=0.6, load_model_tick=None):
     # 如果設置成功且指定了模型，嘗試加載模型
     if result and load_model_tick is not None:
         try:
+            state_file = get_state_filename()
             with open(state_file, 'rb') as file:
                 warehouse: Warehouse = pickle.load(file)
                 

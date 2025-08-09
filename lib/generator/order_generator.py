@@ -293,6 +293,11 @@ def gen_order(order_cycle_time,
         return None
 
 def config_orders(initial_order, total_requested_item, items_orders_class_configuration,quantity_range,order_cycle_time,order_period_time,order_start_arrival_time,date,sim_ver,dev_mode):
+    # 若外部宣告使用既有訂單，直接跳過所有生成/合併步驟
+    if os.environ.get('USE_EXISTING_ORDERS') == '1':
+        print("USE_EXISTING_ORDERS=1 -> 跳過訂單生成/合併，使用現有檔案")
+        return
+
     if sim_ver == 1:
         print("Generate database orders...")
 

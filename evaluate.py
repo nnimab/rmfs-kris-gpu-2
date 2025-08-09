@@ -35,10 +35,6 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 # 導入必要的模組
 import netlogo
-from ai.controllers.dqn_controller import DQNController
-from ai.controllers.nerl_controller import NEController
-from ai.controllers.queue_based_controller import QueueBasedController
-from ai.controllers.time_based_controller import TimeBasedController
 from lib.logger import get_logger
 
 class ControllerEvaluator:
@@ -135,18 +131,19 @@ class ControllerEvaluator:
             # 使用 netlogo.py 的 setup 函數
             netlogo.setup()
             
-            # 載入 warehouse 狀態
+            # 載入 warehouse 狀態（與 netlogo.get_state_filename() 保持一致）
             import pickle
-            # 確保 states 資料夾存在
-            state_dir = 'states'
-            if not os.path.exists(state_dir):
-                os.makedirs(state_dir)
-            
-            sim_id = os.environ.get('SIMULATION_ID', '')
-            if sim_id:
-                state_file = os.path.join(state_dir, f'netlogo_{sim_id}.state')
-            else:
-                state_file = os.path.join(state_dir, 'netlogo.state')
+            state_file = os.environ.get('NETLOGO_STATE_FILE')
+            if not state_file:
+                state_dir_env = os.environ.get('NETLOGO_STATE_DIR')
+                sim_id = os.environ.get('SIMULATION_ID', '')
+                if state_dir_env:
+                    os.makedirs(state_dir_env, exist_ok=True)
+                    state_file = os.path.join(state_dir_env, f'netlogo_{sim_id}.state') if sim_id else os.path.join(state_dir_env, 'netlogo.state')
+                else:
+                    state_dir = 'states'
+                    os.makedirs(state_dir, exist_ok=True)
+                    state_file = os.path.join(state_dir, f'netlogo_{sim_id}.state') if sim_id else os.path.join(state_dir, 'netlogo.state')
             with open(state_file, 'rb') as file:
                 warehouse = pickle.load(file)
             
@@ -155,17 +152,21 @@ class ControllerEvaluator:
             controller = None
             
             if controller_type == 'dqn':
+                # 延遲載入，避免非 DQN 情境下依賴 torch
+                from ai.controllers.dqn_controller import DQNController
                 controller = DQNController(
                     model_path=controller_config['model_path'],
                     reward_mode=controller_config['reward_mode']
                 )
             elif controller_type == 'nerl':
+                from ai.controllers.nerl_controller import NEController
                 controller = NEController(
                     model_path=controller_config['model_path'],
                     reward_mode=controller_config['reward_mode']
                 )
             elif controller_type == 'queue_based':
                 # 檢查是否有參數值
+                from ai.controllers.queue_based_controller import QueueBasedController
                 if 'param_value' in controller_config:
                     # 假設參數值是 min_green_time
                     min_green_time = int(controller_config['param_value'])
@@ -174,6 +175,7 @@ class ControllerEvaluator:
                     controller = QueueBasedController()
             elif controller_type == 'time_based':
                 # 檢查是否有參數值
+                from ai.controllers.time_based_controller import TimeBasedController
                 if 'param_value' in controller_config:
                     # 參數值格式是 "60:40"，解析為水平和垂直時間
                     ratio_parts = controller_config['param_value'].split(':')
@@ -374,9 +376,12 @@ class ControllerEvaluator:
                            f"執行時間: {execution_time:.1f}秒")
             
             # 清理
-            # 清理臨時檔案
-            if os.path.exists(state_file):
-                os.remove(state_file)
+            # 清理臨時檔案（僅在沒有要求保留時）
+            if os.environ.get('KEEP_STATE_FILE') != '1' and os.path.exists(state_file):
+                try:
+                    os.remove(state_file)
+                except Exception:
+                    pass
             
             return result
             

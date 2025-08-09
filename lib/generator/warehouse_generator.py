@@ -158,7 +158,9 @@ def draw_layout_from_generated_file(warehouse: Warehouse, process_id=None):
     assign_skus_to_pods(warehouse.pod_manager, process_id)
     
     # 只有第一個進程才需要生成訂單文件，其他進程直接使用複製的文件
-    if not process_id or not _order_files_exist(process_id):
+    # 若指定 USE_EXISTING_ORDERS=1，則完全跳過生成/合併流程
+    use_existing_orders = os.environ.get('USE_EXISTING_ORDERS') == '1'
+    if (not use_existing_orders) and (not process_id or not _order_files_exist(process_id)):
         config_orders(
             initial_order=20, #原本是20
             total_requested_item=500, # Number of SKU in warehouse #原本是500
@@ -194,13 +196,13 @@ def draw_layout_from_generated_file(warehouse: Warehouse, process_id=None):
 
 
 def _order_files_exist(process_id: int) -> bool:
-    """檢查訂單文件是否存在"""
-    order_files = [
-        f'data/output/generated_order_{process_id}.csv',
-        f'data/input/generated_backlog_{process_id}.csv'
-    ]
-    
-    return all(os.path.exists(os.path.join(PARENT_DIRECTORY, file_path)) for file_path in order_files)
+    """檢查訂單文件是否存在（放寬條件為實際會建立/複製的檔案）。"""
+    # 若環境宣告使用既有訂單，視為存在
+    if os.environ.get('USE_EXISTING_ORDERS') == '1':
+        return True
+    # 僅檢查 generated_order_{pid}.csv 是否已就緒
+    order_file = os.path.join(PARENT_DIRECTORY, f'data/output/generated_order_{process_id}.csv')
+    return os.path.exists(order_file)
 
 
 def _copy_order_files_to_process(process_id: int):
@@ -271,10 +273,15 @@ def assign_cluster_labels(warehouse: Warehouse, data_backlog_order_df, full_orde
         order_path = os.path.join(PARENT_DIRECTORY, 'data/output/generated_order.csv')
     orders_df = pd.read_csv(order_path)
     
-    if process_id:
-        file_path = PARENT_DIRECTORY + f"/data/input/assign_order_{process_id}.csv"
+    # 使用隔離環境變數指定的 assign 檔案，否則退回至 PID 檔
+    env_assign_path = os.environ.get('ASSIGN_ORDER_CSV')
+    if env_assign_path and len(env_assign_path.strip()) > 0:
+        file_path = env_assign_path
     else:
-        file_path = PARENT_DIRECTORY + f"/data/input/assign_order_{os.getpid()}.csv"
+        if process_id:
+            file_path = PARENT_DIRECTORY + f"/data/input/assign_order_{process_id}.csv"
+        else:
+            file_path = PARENT_DIRECTORY + f"/data/input/assign_order_{os.getpid()}.csv"
     if os.path.exists(file_path):
         assign_order_df = pd.read_csv(file_path)
         # pass

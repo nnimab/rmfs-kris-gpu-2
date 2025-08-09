@@ -190,8 +190,8 @@ class Warehouse:
         # 初始化需要補貨的SKU列表
         sku_need_replenished = []
         
-        # 優化：一次讀取 CSV 檔案
-        file_path = PARENT_DIRECTORY + f"/data/input/assign_order_{os.getpid()}.csv"
+        # 優化：一次讀取 CSV 檔案（優先使用隔離環境變數指定的檔案）
+        file_path = os.environ.get('ASSIGN_ORDER_CSV', PARENT_DIRECTORY + f"/data/input/assign_order_{os.getpid()}.csv")
         assign_order_df = pd.read_csv(file_path)
         
         # 遍歷工作中的所有訂單項目
@@ -268,10 +268,20 @@ class Warehouse:
         write_to_csv("order-finished.csv", header, data, self.landscape.current_date_string)
 
     def findNewOrders(self):
-        order_path = os.path.join(PARENT_DIRECTORY, 'data/output/generated_order.csv')
+        # 訂單主檔：優先使用 GENERATED_ORDER_FILE 或 ORDERS_DIR
+        order_file_env = os.environ.get('GENERATED_ORDER_FILE')
+        if order_file_env and os.path.exists(order_file_env):
+            order_path = order_file_env
+        else:
+            orders_dir = os.environ.get('ORDERS_DIR')
+            if orders_dir and os.path.exists(os.path.join(orders_dir, 'generated_order.csv')):
+                order_path = os.path.join(orders_dir, 'generated_order.csv')
+            else:
+                order_path = os.path.join(PARENT_DIRECTORY, 'data/output/generated_order.csv')
         orders_df = pd.read_csv(order_path)
 
-        file_path = PARENT_DIRECTORY + f"/data/input/assign_order_{os.getpid()}.csv"
+        # assign 檔：優先使用隔離環境變數
+        file_path = os.environ.get('ASSIGN_ORDER_CSV', PARENT_DIRECTORY + f"/data/input/assign_order_{os.getpid()}.csv")
         if os.path.exists(file_path):
             assign_order_df = pd.read_csv(file_path)
             # pass
