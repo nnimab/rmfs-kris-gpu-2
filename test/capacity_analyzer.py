@@ -1235,9 +1235,16 @@ class CapacityAnalyzer:
             else:
                 summary_text += "無異常數據被移除"
             
-            ax4.text(0.05, 0.95, summary_text, transform=ax4.transAxes, fontsize=11,
-                    verticalalignment='top', fontfamily='monospace',
-                    bbox=dict(boxstyle="round,pad=0.5", facecolor="lightyellow", alpha=0.8))
+            # 使用全域設定的中文字體，避免 monospace 缺少中文字形導致顯示為方塊
+            ax4.text(
+                0.05,
+                0.95,
+                summary_text,
+                transform=ax4.transAxes,
+                fontsize=11,
+                verticalalignment='top',
+                bbox=dict(boxstyle="round,pad=0.5", facecolor="lightyellow", alpha=0.8),
+            )
             
             plt.tight_layout()
             

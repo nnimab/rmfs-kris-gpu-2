@@ -419,10 +419,10 @@ class ExperimentMenu:
         """獲取要測試的機器人數量"""
         self.console.print("\n📊 請設定要測試的機器人數量:")
         
-        use_default = Confirm.ask("使用預設數量 [25, 30]？", default=True)
+        use_default = Confirm.ask("使用預設數量 [20, 25, 30, 35, 40]？", default=True)
         
         if use_default:
-            return [25, 30]
+            return [20, 25, 30, 35, 40]
         
         robot_counts = []
         self.console.print("請輸入機器人數量（輸入 0 結束）:")
@@ -443,7 +443,7 @@ class ExperimentMenu:
         
         if not robot_counts:
             self.console.print("⚠️  未設定任何數量，使用預設值")
-            return [25, 30]
+            return [20, 25, 30, 35, 40]
         
         robot_counts.sort()
         return robot_counts
