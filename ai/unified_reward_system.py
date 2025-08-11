@@ -51,6 +51,28 @@ class UnifiedRewardSystem:
         self.weights = default_weights
         if weights:
             self.weights.update(weights)
+
+        # V8.0 GLOBAL Fitness（資料驅動權重 + 穩定性）
+        # 讀取可選的配置檔：ai/config/nerl_fitness_config.json
+        self.fitness_config = {
+            'weights': {
+                'w_orders': 1.0,
+                'w_energy': 0.004334,
+                'lambda_wait': 1.0,
+                'lambda_sg': 1.0,
+                'lambda_util': 0.5,
+                # 新增：每事件平均等待懲罰
+                'lambda_avg_wait': 0.3
+            },
+            'refs': {
+                'W_thr': 500.0,
+                'SG_thr': 1000.0,  # 預設：可透過配置覆寫，建議以 P95 校準
+                'U_ref': 0.8807,
+                # 新增：每事件平均等待的正規化門檻（ticks）
+                'AW_thr': 50.0
+            }
+        }
+        self._load_fitness_config()
         
         # V5.0: 溢出懲罰累加器
         self._spillback_penalty_accumulator = 0.0
@@ -244,7 +266,7 @@ class UnifiedRewardSystem:
             
             flow_reward += base_reward * intersection_weight
         
-        # 3. 等待成本（非關鍵路口減少懲罰）
+        # 3. 等待成本（依等待時長加權；非關鍵路口減少懲罰）
         wait_cost = 0
         for robot in waiting_robots:
             priority = get_robot_task_priority(robot)
@@ -252,7 +274,16 @@ class UnifiedRewardSystem:
             # 非關鍵路口等待成本減半
             if intersection_weight == 1.0:
                 base_cost *= 0.5
-            wait_cost += base_cost
+            # 依當前等待時長加權（上限避免爆炸）
+            wait_duration = 0
+            if hasattr(robot, 'current_intersection_start_time') and robot.current_intersection_start_time is not None:
+                try:
+                    wait_duration = max(0, tick - robot.current_intersection_start_time)
+                except Exception:
+                    wait_duration = 0
+            # 以 50 ticks 為基準縮放，最多放大至 4 倍
+            scale = 1.0 + min(wait_duration / 50.0, 3.0)
+            wait_cost += base_cost * scale
         
         # 4. 切換成本（關鍵路口減少懲罰）
         switch_cost = self.weights['switch_penalty'] if signal_switched else 0
@@ -299,55 +330,106 @@ class UnifiedRewardSystem:
     
     def calculate_global_reward(self, warehouse, episode_ticks: int) -> float:
         """
-        計算全局獎勵 - V5.1 結構性手術版本
-        
-        V5.1 公式：
-        R_global = (N_orders_completed × W_completion) / 
-                   ((E_total / C_E_scale) + (T_python_ticks × W_time) + P_spillback + ε) + B_no_spillback
-        
-        Args:
-            warehouse: 倉庫對象
-            episode_ticks: 評估回合的總時間步數
-            
-        Returns:
-            float: 全局獎勵值
+        計算全局獎勵 - V8.0（GLOBAL Fitness，加權 + 穩定性正規化）
+        Fitness = (CompletedOrders × w_orders)
+                  − (TotalEnergy × w_energy)
+                  − (λ_wait × MaxWaitNorm)
+                  − (λ_sg × StopGoNorm)
+                  − (λ_util × UtilShortfall)
         """
-        if episode_ticks == 0:
-            return 0.0
-        
-        # 1. 獲取核心KPI數據
-        completed_orders = len(warehouse.order_manager.finished_orders)
-        total_energy = getattr(warehouse, 'total_energy', 0)
-        
-        # 2. 獲取總溢出懲罰（V5.1：移入分母）
-        total_spillback_penalty = self._spillback_penalty_accumulator
-        
-        # 3. V5.1 公式實現
-        epsilon = 1e-6
-        
-        # 分子：完成訂單獎勵
-        numerator = completed_orders * self.weights['completion_bonus']
-        
-        # 分母：總成本（能源 + 時間 + 溢出懲罰）
-        energy_cost = total_energy / self.weights['energy_scale_factor']  # 使用縮放係數
-        time_cost = episode_ticks * self.weights['time_penalty_per_tick']
-        spillback_cost = total_spillback_penalty * self.weights['spillback_penalty_weight']
-        
-        denominator = energy_cost + time_cost + spillback_cost + epsilon
-        
-        # 效率得分
-        efficiency_score = numerator / denominator
-        
-        # 4. 無溢出獎勵（V5.1 新增）
-        no_spillback_bonus = 0.0
-        if total_spillback_penalty == 0:
-            no_spillback_bonus = self.weights['no_spillback_bonus']
-        
-        # 5. 最終獎勵 = 效率得分 + 無溢出獎勵
-        final_reward = efficiency_score + no_spillback_bonus
-        
-        self.reset()  # 重置累加器
-        return final_reward
+        # 取得權重與參考值
+        fw = self.fitness_config['weights']
+        ref = self.fitness_config['refs']
+
+        # Completed orders / Energy
+        completed_orders = len(getattr(warehouse.order_manager, 'finished_orders', []))
+        total_energy = float(getattr(warehouse, 'total_energy', 0.0))
+
+        # Max wait time（以事件累積為準）與 Utilization（自動計算）
+        max_wait_time = 0.0
+        total_robots = 0
+        util_sum = 0.0
+        current_tick = getattr(warehouse, '_tick', 0) or 0
+        # 先用事件紀錄求整回合最大等待
+        try:
+            for inter in getattr(warehouse.intersection_manager, 'intersections', []):
+                if hasattr(inter, 'waiting_time_records') and inter.waiting_time_records:
+                    for _, wt in inter.waiting_time_records:
+                        if wt and wt > max_wait_time:
+                            max_wait_time = wt
+        except Exception:
+            pass
+        # 若無事件資料，退回以當前快照估計（相容舊版）
+        if max_wait_time == 0.0:
+            for robot in getattr(warehouse.robot_manager, 'robots', []):
+                if hasattr(robot, 'intersection_wait_time') and robot.intersection_wait_time:
+                    for _, wait in robot.intersection_wait_time.items():
+                        if wait and wait > max_wait_time:
+                            max_wait_time = wait
+        # 利用率計算
+        for robot in getattr(warehouse.robot_manager, 'robots', []):
+            total_robots += 1
+            if current_tick > 0 and hasattr(robot, 'get_current_active_time'):
+                util_sum += min(1.0, robot.get_current_active_time(current_tick) / current_tick)
+
+        avg_utilization = (util_sum / total_robots) if total_robots > 0 else 0.0
+
+        # Stop-and-Go 事件（由系統在 stop→go 時累計）
+        total_stop_go = int(getattr(warehouse, 'stop_and_go', 0))
+
+        # 正規化項
+        W_thr = max(1e-6, float(ref.get('W_thr', 500.0)))
+        SG_thr = max(1e-6, float(ref.get('SG_thr', 1000.0)))
+        U_ref = max(1e-6, float(ref.get('U_ref', 0.8807)))
+        AW_thr = max(1e-6, float(ref.get('AW_thr', 50.0)))
+
+        max_wait_norm = min(1.0, max_wait_time / W_thr)
+        stop_go_norm = min(1.0, total_stop_go / SG_thr)
+        util_shortfall = max(0.0, (U_ref - avg_utilization) / U_ref)
+
+        # 新增：每事件平均等待（AvgWait）
+        # 從系統指標重算（若之前尚未計算過）
+        total_wait_time = 0.0
+        wait_events = 0
+        for inter in getattr(warehouse.intersection_manager, 'intersections', []):
+            if hasattr(inter, 'waiting_time_records') and inter.waiting_time_records:
+                wait_events += len(inter.waiting_time_records)
+                for _, wt in inter.waiting_time_records:
+                    total_wait_time += wt
+        avg_wait = (total_wait_time / wait_events) if wait_events > 0 else 0.0
+        avg_wait_norm = min(1.0, avg_wait / AW_thr)
+
+        # Fitness 組合
+        fitness = (
+            (completed_orders * fw['w_orders'])
+            - (total_energy * fw['w_energy'])
+            - (fw['lambda_wait'] * max_wait_norm)
+            - (fw['lambda_sg'] * stop_go_norm)
+            - (fw['lambda_util'] * util_shortfall)
+            - (fw.get('lambda_avg_wait', 0.0) * avg_wait_norm)
+        )
+
+        # 重置與回傳
+        self.reset()
+        return float(fitness)
+
+    # --- 內部：讀取 V8 Fitness 設定（可選） ---
+    def _load_fitness_config(self):
+        import os, json
+        config_path = os.path.join('ai', 'config', 'nerl_fitness_config.json')
+        if not os.path.isfile(config_path):
+            return
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                if 'weights' in data and isinstance(data['weights'], dict):
+                    self.fitness_config['weights'].update(data['weights'])
+                if 'refs' in data and isinstance(data['refs'], dict):
+                    self.fitness_config['refs'].update(data['refs'])
+        except Exception:
+            # 配置讀取失敗時忽略，使用內建預設
+            pass
     
     def _update_episode_stats(self, reward_value: float, intersection, tick: int):
         """更新評估回合的統計數據 - 簡化版本"""
@@ -356,6 +438,13 @@ class UnifiedRewardSystem:
         
         # 更新時間步數
         self.episode_data['ticks_count'] += 1
+        
+        # 若路口方向切換，計數（以便和報表一致）
+        try:
+            if hasattr(intersection, 'signal_switch_count'):
+                self.episode_data['switch_count'] = int(self.episode_data.get('switch_count', 0))
+        except Exception:
+            pass
     
     def get_reward(self, intersection, prev_state, action, current_state, tick, warehouse, **kwargs) -> float:
         """
@@ -511,17 +600,16 @@ class UnifiedRewardSystem:
         else:
             self.episode_data['robot_utilization'] = 0.0
         
-        # 計算交叉口等待時間和擁堵指標
+        # 計算交叉口等待時間與擁堵指標（以事件累積為準）
         intersection_congestion = []
-        all_robot_wait_times = []
+        all_wait_events = []
         
-        # 改進：遍歷所有機器人來計算等待時間
-        for robot in warehouse.robot_manager.robots:
-            if hasattr(robot, 'intersection_wait_time') and robot.intersection_wait_time:
-                # 累加所有交叉口的等待時間
-                for intersection_id, wait_time in robot.intersection_wait_time.items():
+        # 以各路口的 waiting_time_records 為準，累積整回合等待事件
+        for intersection in warehouse.intersection_manager.intersections:
+            if hasattr(intersection, 'waiting_time_records') and intersection.waiting_time_records:
+                for _, wait_time in intersection.waiting_time_records:
                     if wait_time > 0:
-                        all_robot_wait_times.append(wait_time)
+                        all_wait_events.append(wait_time)
                         total_wait_time += wait_time
                         max_wait_time = max(max_wait_time, wait_time)
         
@@ -539,11 +627,11 @@ class UnifiedRewardSystem:
             self.episode_data['avg_intersection_congestion'] = np.mean(intersection_congestion)
             self.episode_data['max_intersection_congestion'] = max(intersection_congestion)
         
-        # 更新等待時間指標
+        # 更新等待時間指標（累積事件）
         self.episode_data['total_wait_time'] = total_wait_time
         self.episode_data['max_wait_time'] = max_wait_time
-        if len(all_robot_wait_times) > 0:
-            self.episode_data['avg_wait_time'] = total_wait_time / len(all_robot_wait_times)
+        if len(all_wait_events) > 0:
+            self.episode_data['avg_wait_time'] = total_wait_time / len(all_wait_events)
         else:
             self.episode_data['avg_wait_time'] = 0.0
         

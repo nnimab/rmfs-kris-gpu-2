@@ -61,8 +61,27 @@ def evaluate_individual_parallel(args):
 
     try:
         # 3. 創建獨立、乾淨的 Warehouse 環境
-        # --- 【關鍵修改點】 ---
+        #    參考 evaluate.py 的隔離策略：為每個進程設定唯一的 SIMULATION_ID 與狀態檔路徑
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        sim_id = f"nerl_gen{generation+1}_ind{individual_index+1}_{process_id}_{timestamp}"
+        state_dir = os.path.join('states', 'nerl_runs', sim_id)
+        try:
+            os.makedirs(state_dir, exist_ok=True)
+        except Exception:
+            pass
+        os.environ['SIMULATION_ID'] = sim_id
+        os.environ['NETLOGO_STATE_DIR'] = state_dir
+        os.environ['NETLOGO_STATE_FILE'] = os.path.join(state_dir, f'netlogo_{sim_id}.state')
+        # 關鍵：為每次評估指定獨立的 assign_order 檔，避免跨代或跨個體共享造成 total_orders 不一致
+        os.environ['ASSIGN_ORDER_CSV'] = os.path.join(state_dir, 'assign_order.csv')
+        # 建議：使用既有訂單檔，避免在併行/多次評估時重建/合併引發小幅差異
+        os.environ['USE_EXISTING_ORDERS'] = '1'
+        worker_logger.debug(f"Worker {process_id} ENV -> SIMULATION_ID={sim_id}, NETLOGO_STATE_DIR={state_dir}")
+        worker_logger.debug(f"Worker {process_id} ENV -> NETLOGO_STATE_FILE={os.environ['NETLOGO_STATE_FILE']}")
+        worker_logger.debug(f"Worker {process_id} ENV -> ASSIGN_ORDER_CSV={os.environ['ASSIGN_ORDER_CSV']}")
+
         # 準備要傳遞給 training_setup 的參數
+        # --- 【關鍵修改點】 ---
         controller_kwargs = {
             'reward_mode': reward_mode,
             'log_file_path': log_file_path,
@@ -166,6 +185,9 @@ def evaluate_individual_parallel(args):
         
         fitness = controller.calculate_individual_fitness(warehouse, eval_ticks)
         episode_summary = controller.reward_system.get_episode_summary()
+        # 補齊回合元資料，避免 ticks_count 與使用者期望（python ticks / warehouse ticks）混淆
+        episode_summary['python_ticks'] = eval_ticks
+        episode_summary['warehouse_final_tick'] = getattr(warehouse, '_tick', 0)
         
         # V7.0: 獲取動作統計
         action_stats = controller.get_action_statistics()
@@ -212,7 +234,24 @@ def evaluate_final_best_nerl(args):
     worker_logger.info("Evaluating the final best individual...")
 
     try:
-        # 3. 創建獨立的 Warehouse 環境
+        # 3. 創建獨立的 Warehouse 環境（同 evaluate.py 隔離策略）
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        sim_id = f"nerl_final_{process_id}_{timestamp}"
+        state_dir = os.path.join('states', 'nerl_runs', sim_id)
+        try:
+            os.makedirs(state_dir, exist_ok=True)
+        except Exception:
+            pass
+        os.environ['SIMULATION_ID'] = sim_id
+        os.environ['NETLOGO_STATE_DIR'] = state_dir
+        os.environ['NETLOGO_STATE_FILE'] = os.path.join(state_dir, f'netlogo_{sim_id}.state')
+        os.environ['ASSIGN_ORDER_CSV'] = os.path.join(state_dir, 'assign_order.csv')
+        os.environ['USE_EXISTING_ORDERS'] = '1'
+        worker_logger.debug(f"FinalEval {process_id} ENV -> SIMULATION_ID={sim_id}, NETLOGO_STATE_DIR={state_dir}")
+        worker_logger.debug(f"FinalEval {process_id} ENV -> NETLOGO_STATE_FILE={os.environ['NETLOGO_STATE_FILE']}")
+        worker_logger.debug(f"FinalEval {process_id} ENV -> ASSIGN_ORDER_CSV={os.environ['ASSIGN_ORDER_CSV']}")
+
+        # 建立控制器參數
         controller_kwargs = {
             'reward_mode': reward_mode,
             'log_file_path': log_file_path,
@@ -239,6 +278,7 @@ def evaluate_final_best_nerl(args):
         controller.reset_episode_stats()
 
         # 5. 運行模擬
+        start_time = time.time()
         for python_tick in range(eval_ticks):
             if python_tick % 500 == 0:
                 print(f"Final Eval - Tick:{python_tick}/{eval_ticks}")
@@ -272,6 +312,7 @@ def evaluate_final_best_nerl(args):
                     break
         
         # 6. 計算並收集最終指標
+        execution_time = time.time() - start_time
         if reward_mode == "global":
             fitness = controller.reward_system.calculate_global_reward(warehouse, eval_ticks)
         else:
@@ -279,11 +320,20 @@ def evaluate_final_best_nerl(args):
 
         completed_orders = len([j for j in warehouse.job_manager.jobs if j.is_finished])
         total_energy = getattr(warehouse, 'total_energy', 0.0)
+
+        # 更新回合統計以便輸出完整摘要
+        try:
+            controller.reward_system.update_episode_metrics(warehouse, execution_time)
+            episode_summary = controller.reward_system.get_episode_summary()
+        except Exception as metrics_error:
+            worker_logger.warning(f"更新最終評估指標失敗: {metrics_error}")
+            episode_summary = {}
         
         summary = {
             "best_fitness": fitness,
             "completed_orders": completed_orders,
-            "total_energy": total_energy
+            "total_energy": total_energy,
+            "episode_summary": episode_summary
         }
 
         print(f"=== NERL Final Evaluation Complete. Fitness: {fitness:.4f}, Orders: {completed_orders} ===")
@@ -342,7 +392,7 @@ def launch_netlogo():
         return False
 
 
-def run_nerl_training(generations, population_size, evaluation_ticks, reward_mode="global", training_dir=None, parallel_workers=1, log_file_path=None, nerl_params=None):
+def run_nerl_training(generations, population_size, evaluation_ticks, reward_mode="global", training_dir=None, parallel_workers=1, log_file_path=None, nerl_params=None, results_output_dir=None):
     """
     Executes the NERL model training loop using the new lightweight functions.
     
@@ -352,6 +402,10 @@ def run_nerl_training(generations, population_size, evaluation_ticks, reward_mod
         evaluation_ticks: 每個個體的評估時間
         reward_mode: 獎勵模式，"global"或"step"（V6.0已改進）
     """
+    # 確保主訓練 logger 已初始化（避免 NoneType 錯誤）
+    global logger
+    if logger is None:
+        logger = get_logger(log_file_path=log_file_path)
     # 檢查日誌級別，只有在適當級別時才顯示訓練信息
     if logger and logger.isEnabledFor(logging.INFO):
         logger.info("--- Starting NERL Training ---")
@@ -461,6 +515,26 @@ def run_nerl_training(generations, population_size, evaluation_ticks, reward_mod
                         logger.info(f"    No Limit: {action_counts[5]} ({action_counts[5]/total_actions*100:.1f}%)")
                         speed_actions = action_counts[3] + action_counts[4] + action_counts[5]
                         logger.info(f"    Total speed control actions: {speed_actions} ({speed_actions/total_actions*100:.1f}%)")
+
+            # 新增：每代輸出摘要到 test/train_results（結構貼近 evaluate.py）
+            try:
+                export_dir = os.path.join('test', 'train_results')
+                os.makedirs(export_dir, exist_ok=True)
+                per_gen = {
+                    'generation': gen + 1,
+                    'best_fitness_of_generation': float(best_fitness_of_gen),
+                    'fitness_scores': [float(s) for s in fitness_scores]
+                }
+                # 夾帶最佳個體的關鍵KPI（若可用）
+                if episode_summaries:
+                    per_gen['best_individual_metrics'] = best_summary
+                ts_gen = datetime.now().strftime('%Y%m%d_%H%M%S')
+                gen_file = os.path.join(export_dir, f'nerl_global_gen_{gen+1:03d}_{ts_gen}.json')
+                with open(gen_file, 'w', encoding='utf-8') as f:
+                    json.dump(per_gen, f, indent=2, ensure_ascii=False)
+                logger.info(f"Per-generation summary exported: {gen_file}")
+            except Exception as e:
+                logger.warning(f"Failed to export per-generation summary: {e}")
         except Exception as e:
             logger.error(f"ERROR during evolution for generation {gen + 1}: {e}")
             break  # Stop training if evolution fails
@@ -492,6 +566,41 @@ def run_nerl_training(generations, population_size, evaluation_ticks, reward_mod
         logger.info(f"  Best Fitness Achieved: {final_summary.get('best_fitness', 'N/A')}")
         logger.info(f"  Completed Orders: {final_summary.get('completed_orders', 'N/A')}")
         logger.info(f"  Total Energy Consumed: {final_summary.get('total_energy', 0.0):.2f}")
+
+        # -- 新增：將最終訓練摘要與完整指標輸出到 test/train_results --
+        try:
+            output_dir = results_output_dir or os.path.join('test', 'train_results')
+            os.makedirs(output_dir, exist_ok=True)
+            # 匯總更多系統層KPI
+            # 優先使用子進程回傳的 episode_summary，避免父進程 reward_system 沒同步的問題
+            final_metrics = final_summary.get('episode_summary', {})
+            export = {
+                'best_fitness': final_summary.get('best_fitness', 0.0),
+                'completed_orders': final_summary.get('completed_orders', 0),
+                'total_energy': final_summary.get('total_energy', 0.0),
+                # Episode 累積與系統關鍵指標
+                'episode_total_reward': final_metrics.get('total_reward', 0.0),
+                'ticks_count': final_metrics.get('ticks_count', 0),
+                'avg_wait_time': final_metrics.get('avg_wait_time', 0.0),
+                'max_wait_time': final_metrics.get('max_wait_time', 0.0),
+                'total_wait_time': final_metrics.get('total_wait_time', 0.0),
+                'robot_utilization': final_metrics.get('robot_utilization', 0.0),
+                'total_stop_go': final_metrics.get('total_stop_go', 0),
+                'avg_traffic_rate': final_metrics.get('avg_traffic_rate', 0.0),
+                'avg_intersection_congestion': final_metrics.get('avg_intersection_congestion', 0.0),
+                'max_intersection_congestion': final_metrics.get('max_intersection_congestion', 0.0),
+                'signal_switch_count': final_metrics.get('signal_switch_count', 0),
+                'energy_per_order': final_metrics.get('energy_per_order', 0.0),
+                'completion_rate': final_metrics.get('completion_rate', 0.0)
+            }
+            # 文件名帶上時間戳
+            ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+            json_path = os.path.join(output_dir, f'nerl_global_train_summary_{ts}.json')
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(export, f, indent=2, ensure_ascii=False)
+            logger.info(f"Final NERL training summary exported: {json_path}")
+        except Exception as e:
+            logger.warning(f"Failed to export final training summary: {e}")
     else:
         logger.warning("No best individual found, skipping final evaluation.")
         final_summary = {}

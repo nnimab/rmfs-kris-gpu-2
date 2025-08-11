@@ -136,7 +136,8 @@ class TrafficStateNormalizer(AdaptiveNormalizer):
             'v_wait_time',         # 垂直方向平均等待時間
             'neighbor_robots',     # 相鄰路口機器人總數
             'neighbor_priority',   # 相鄰路口優先級機器人數
-            'neighbor_wait'        # 相鄰路口平均等待時間
+            'neighbor_wait',       # 相鄰路口平均等待時間
+            'picking_queue'        # 全域揀貨台排隊長度
         ]
         
         super().__init__(feature_names, window_size)
@@ -150,3 +151,5 @@ class TrafficStateNormalizer(AdaptiveNormalizer):
         self.feature_data['neighbor_robots']['max_val'] = 50.0
         self.feature_data['neighbor_priority']['max_val'] = 30.0
         self.feature_data['neighbor_wait']['max_val'] = 100.0
+        # 預設揀貨台容量上限（可由百分位數動態調整）
+        self.feature_data['picking_queue']['max_val'] = 10.0

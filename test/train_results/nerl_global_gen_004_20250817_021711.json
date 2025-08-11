@@ -1,0 +1,35 @@
+{
+  "generation": 4,
+  "best_fitness_of_generation": 8.71206379620255,
+  "fitness_scores": [
+    5.088703826816903,
+    5.5709165044923,
+    5.702080532161474,
+    5.622129030897728,
+    5.30381194538883,
+    1.6836020650969514
+  ],
+  "best_individual_metrics": {
+    "total_reward": 0.0,
+    "ticks_count": 835,
+    "completed_orders": 15,
+    "total_orders": 58,
+    "completion_rate": 0.25862068965517243,
+    "avg_order_processing_time": 347.0,
+    "total_completion_time": 5205.0,
+    "execution_time": 192.10102653503418,
+    "avg_wait_time": 8.102395209580493,
+    "max_wait_time": 154.64999999997656,
+    "total_wait_time": 4059.2999999998274,
+    "total_energy": 1863.6375395895454,
+    "energy_per_order": 124.24250263930303,
+    "robot_utilization": 0.9717777777777762,
+    "total_stop_go": 863,
+    "avg_traffic_rate": 0.021330295367030926,
+    "avg_intersection_congestion": 1.0,
+    "max_intersection_congestion": 1,
+    "spillback_penalty_total": 15018.0,
+    "switch_count": 0,
+    "signal_switch_count": 550
+  }
+}

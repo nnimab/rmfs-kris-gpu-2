@@ -129,9 +129,10 @@ class Warehouse:
                 initial_velocity = o.velocity
                 o.move()
                 if isinstance(o, Robot):
-                    total_energy += o.current_tick_energy  # \u4f7f\u7528\u7576\u524d tick \u7684\u80fd\u8017\uff0c\u800c\u975e\u7d2f\u7a4d\u503c
+                    total_energy += o.current_tick_energy  # 使用當前 tick 的能耗，而非累積值
                     total_turning += o.turning
-                    if o.velocity == 0 and initial_velocity > 0:
+                    # 將 Stop-and-Go 定義為「由停滯/等待 → 恢復移動」
+                    if initial_velocity == 0 and o.velocity > 0:
                         self.stop_and_go += 1
 
                     if o.job is not None and o.job.picking_delay == 0 and not o.job.is_finished:

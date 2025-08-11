@@ -81,6 +81,7 @@ class ExperimentMenu:
             "📉 [bold magenta]時間序列分析[/bold magenta] - 分析測試的時間序列數據",
             "🧹 [bold red]清理臨時檔案[/bold red] - 清理測試產生的臨時檔案",
             "📋 [bold cyan]顯示歷史測試[/bold cyan] - 查看過往測試記錄",
+            "🤖 [bold green]訓練 NERL (Global)[/bold green] - 一鍵啟動 NERL 全局獎勵訓練",
             "❌ [bold dim]退出程式[/bold dim]"
         ]
         
@@ -793,6 +794,40 @@ class ExperimentMenu:
             self.console.print(f"✅ 已清理 {cleaned_count} 個工作空間")
         else:
             self.console.print("⚠️  沒有控制器實例，無法清理檔案")
+
+    def train_nerl_global(self):
+        """一鍵啟動 NERL 全局獎勵訓練，並將最終結果輸出到 test/train_results"""
+        from rich.prompt import IntPrompt, Confirm
+        from datetime import datetime
+        import os
+        
+        self.console.print(Panel("🤖 訓練 NERL (Global)", style="bold green"))
+        generations = IntPrompt.ask("進化代數", default=20)
+        population = IntPrompt.ask("族群大小", default=20)
+        eval_ticks = IntPrompt.ask("每個個體評估 ticks", default=2000)
+        parallel = Confirm.ask("啟用並行評估？", default=True)
+        workers = IntPrompt.ask("並行進程數", default=max(1, (os.cpu_count() or 4) // 2)) if parallel else 1
+        
+        # 準備輸出路徑
+        results_output_dir = os.path.join("test", "train_results")
+        os.makedirs(results_output_dir, exist_ok=True)
+        
+        try:
+            from train import run_nerl_training
+            run_nerl_training(
+                generations=generations,
+                population_size=population,
+                evaluation_ticks=eval_ticks,
+                reward_mode="global",
+                training_dir=os.path.join("models", "training_runs", datetime.now().strftime("%Y-%m-%d_%H%M%S_nerl_global")),
+                parallel_workers=workers,
+                log_file_path=None,
+                nerl_params={"mutation_rate": 0.2, "mutation_strength": 0.15, "elite_size": 2, "crossover_rate": 0.7},
+                results_output_dir=results_output_dir
+            )
+            self.console.print("\n[green]✓ NERL Global 訓練完成，結果已輸出到 test/train_results[/green]")
+        except Exception as e:
+            self.console.print(f"\n[red]✗ 訓練過程發生錯誤：{e}[/red]")
     
     def show_history(self):
         """顯示歷史測試"""
@@ -1258,6 +1293,8 @@ class ExperimentMenu:
                 elif choice == 8:
                     self.show_history()
                 elif choice == 9:
+                    self.train_nerl_global()
+                elif choice == 10:
                     self.console.print("👋 再見！")
                     # 清理所有活躍會話
                     for controller in self.active_sessions.values():

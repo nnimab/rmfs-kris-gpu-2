@@ -279,25 +279,34 @@ class ControllerEvaluator:
 
                     #（移除抽樣狀態占比邏輯）
                     
-                    # 收集等待時間
-                    # 收集所有機器人的等待事件（與訓練保持一致）
+                    # 收集等待時間（以事件累積為準）
                     if 'all_wait_events' not in metrics:
                         metrics['all_wait_events'] = []
-                    
-                    for robot in warehouse.robot_manager.robots:
-                        if hasattr(robot, 'intersection_wait_time'):
-                            for intersection_id, wait_time in robot.intersection_wait_time.items():
-                                if wait_time > 0:
-                                    metrics['all_wait_events'].append(wait_time)
-                    
-                    # 累加總等待時間（用於後續計算）
                     if 'total_wait_time' not in metrics:
                         metrics['total_wait_time'] = 0
-                    
-                    current_tick_wait = sum(sum(robot.intersection_wait_time.values()) 
-                                          for robot in warehouse.robot_manager.robots 
-                                          if hasattr(robot, 'intersection_wait_time'))
-                    metrics['total_wait_time'] += current_tick_wait
+                    if 'wait_event_cursor' not in metrics:
+                        metrics['wait_event_cursor'] = {}
+                    # 讀取各路口的事件紀錄
+                    try:
+                        for inter in warehouse.intersection_manager.intersections:
+                            if hasattr(inter, 'waiting_time_records') and inter.waiting_time_records:
+                                prev_n = metrics['wait_event_cursor'].get(inter.id, 0)
+                                records = inter.waiting_time_records
+                                if prev_n < len(records):
+                                    new_records = records[prev_n:]
+                                    for _, wt in new_records:
+                                        if wt > 0:
+                                            metrics['all_wait_events'].append(wt)
+                                            metrics['total_wait_time'] += wt
+                                    metrics['wait_event_cursor'][inter.id] = len(records)
+                    except Exception:
+                        # 相容舊版：退回以快照估計（不再作累積）
+                        current_tick_wait = sum(
+                            sum(robot.intersection_wait_time.values())
+                            for robot in warehouse.robot_manager.robots
+                            if hasattr(robot, 'intersection_wait_time')
+                        )
+                        metrics['total_wait_time'] += current_tick_wait
                     
                     # 收集能源消耗
                     # 使用 warehouse.total_energy 而非機器人累計，以保持與歷史評估的一致性
@@ -339,10 +348,8 @@ class ControllerEvaluator:
             # 計算衍生指標
             completion_rate = metrics['completed_orders'] / metrics['total_orders'] if metrics['total_orders'] > 0 else 0
             
-            # 平均等待時間計算（與訓練保持一致）
-            # 使用所有等待事件的平均值，而不是總等待時間除以機器人數×tick數
+            # 平均等待時間計算（與訓練保持一致，採用事件累積）
             if 'all_wait_events' in metrics and len(metrics['all_wait_events']) > 0:
-                # 與 ai/unified_reward_system.py:546 保持一致
                 avg_wait_time = sum(metrics['all_wait_events']) / len(metrics['all_wait_events'])
             else:
                 avg_wait_time = 0
@@ -362,6 +369,8 @@ class ControllerEvaluator:
                 'total_orders': metrics['total_orders'],
                 'completion_rate': completion_rate,
                 'avg_wait_time': avg_wait_time,
+                'max_wait_time': (max(metrics['all_wait_events']) if ('all_wait_events' in metrics and metrics['all_wait_events']) else 0),
+                'total_wait_time': metrics.get('total_wait_time', 0),
                 'robot_utilization': robot_utilization,
                 'total_energy': metrics['total_energy_consumed'],
                 'energy_per_order': energy_per_order,

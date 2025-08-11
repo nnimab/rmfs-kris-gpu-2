@@ -342,9 +342,6 @@ class NEController(TrafficController):
         # 使用自適應正規化
         normalized = self.normalizer.normalize_features(raw_features)
         
-        # V5.0: 揀貨台容量常數（用於歸一化）
-        MAX_PICKING_QUEUE_CAPACITY = 10.0
-        
         # 構建17維狀態向量（V5.0：新增第17維）
         state = [
             # 當前路口狀態（8維）
@@ -370,8 +367,8 @@ class NEController(TrafficController):
             (max([len(n.horizontal_robots) + len(n.vertical_robots) for n in neighbors['intersections']] + [0]) - 
              min([len(n.horizontal_robots) + len(n.vertical_robots) for n in neighbors['intersections']] + [0])) / max(neighbors['total_robots'], 1),
             
-            # V5.0: 全局揀貨台排隊特徵（第17維）
-            normalized['picking_queue'] / MAX_PICKING_QUEUE_CAPACITY
+            # V5.0: 全局揀貨台排隊特徵（第17維，直接使用正規化值）
+            normalized['picking_queue']
         ]
         
         return np.array(state)
@@ -544,12 +541,12 @@ class NEController(TrafficController):
             # 如果我們有記錄這個交叉口的最後方向，就使用它
             # 否則，默認為水平方向
             return self.intersection_last_directions.get(intersection_id, "Horizontal")
-        elif action == 1:  # 切換到水平
-            self.intersection_last_directions[intersection_id] = "Horizontal"
-            return "Horizontal"
-        else:  # 切換到垂直 (action == 2)
+        elif action == 1:  # 垂直
             self.intersection_last_directions[intersection_id] = "Vertical"
             return "Vertical"
+        else:  # 水平 (action == 2)
+            self.intersection_last_directions[intersection_id] = "Horizontal"
+            return "Horizontal"
     
     def _check_neighboring_congestion(self, intersection, warehouse):
         """
@@ -971,6 +968,12 @@ class NEController(TrafficController):
     def get_episode_summary(self):
         """獲取評估回合統計摘要"""
         summary = self.reward_system.get_episode_summary()
+        # 追加系統層關鍵KPI（來自 warehouse），確保輸出完整
+        try:
+            # 這裡無法直接取得 warehouse；由外部在最終評估時更新
+            pass
+        except Exception:
+            pass
         # V7.0: 添加動作統計
         summary['action_counts'] = self.action_counts.copy()
         return summary

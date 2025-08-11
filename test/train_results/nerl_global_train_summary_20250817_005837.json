@@ -1,0 +1,18 @@
+{
+  "best_fitness": 3.2830926817929935,
+  "completed_orders": 14,
+  "total_energy": 1084.4607807403013,
+  "episode_total_reward": 0.0,
+  "ticks_count": 0,
+  "avg_wait_time": 0.0,
+  "max_wait_time": 0.0,
+  "total_wait_time": 0.0,
+  "robot_utilization": 0.0,
+  "total_stop_go": 0,
+  "avg_traffic_rate": 0.0,
+  "avg_intersection_congestion": 0.0,
+  "max_intersection_congestion": 0.0,
+  "signal_switch_count": 0,
+  "energy_per_order": 0.0,
+  "completion_rate": 0.0
+}

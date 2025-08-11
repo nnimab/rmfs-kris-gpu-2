@@ -217,7 +217,8 @@ class BaselineAnalyzer:
             # 返回空的 DataFrame，但包含所需的欄位
             return pd.DataFrame(columns=['test_id', 'robot_count', 'run_index', 'parameter', 
                                         'parameter_type', 'completion_rate', 'avg_wait_time', 
-                                        'robot_utilization', 'total_energy', 'execution_time'])
+                                        'robot_utilization', 'total_energy', 'execution_time',
+                                        'signal_switch_count', 'avg_traffic_rate', 'energy_per_order'])
         
         for result in self.summary['results']:
             if result.get('status') != 'completed':
@@ -238,13 +239,18 @@ class BaselineAnalyzer:
                 test_record['parameter'] = str(result.get('queue_threshold', 0))
                 test_record['parameter_type'] = 'queue_threshold'
             
-            # 提取性能指標
+            # 提取性能指標（包含所有可能的欄位）
             test_record['completed_orders'] = result.get('completed_orders', 0)
             test_record['total_orders'] = result.get('total_orders', 0)
             test_record['completion_rate'] = result.get('completion_rate', 0)
             test_record['avg_wait_time'] = result.get('avg_wait_time', 0)
             test_record['robot_utilization'] = result.get('robot_utilization', 0)
             test_record['total_energy'] = result.get('total_energy', 0)
+            
+            # 提取新的指標（如果存在）
+            test_record['signal_switch_count'] = result.get('signal_switch_count', 0)
+            test_record['avg_traffic_rate'] = result.get('avg_traffic_rate', 0)
+            
             # energy_per_order 若缺失則以總能耗/完成訂單估算
             epo = result.get('energy_per_order', None)
             if epo is None or (isinstance(epo, float) and np.isnan(epo)):
@@ -252,6 +258,7 @@ class BaselineAnalyzer:
                 test_record['energy_per_order'] = (test_record['total_energy'] / co) if co else np.nan
             else:
                 test_record['energy_per_order'] = epo
+                
             test_record['execution_time'] = result.get('execution_time', 0)
             
             all_results.append(test_record)
@@ -261,7 +268,8 @@ class BaselineAnalyzer:
             self.logger.warning("沒有找到任何完成的測試結果")
             return pd.DataFrame(columns=['test_id', 'robot_count', 'run_index', 'parameter', 
                                         'parameter_type', 'completion_rate', 'avg_wait_time', 
-                                        'robot_utilization', 'total_energy', 'execution_time'])
+                                        'robot_utilization', 'total_energy', 'execution_time',
+                                        'signal_switch_count', 'avg_traffic_rate', 'energy_per_order'])
         
         return pd.DataFrame(all_results)
 
@@ -356,7 +364,7 @@ class BaselineAnalyzer:
         return cleaned_df
     
     def generate_parameter_comparison_chart(self) -> str:
-        """生成參數比較圖表"""
+        """生成參數比較圖表（增強版）"""
         df = self._load_all_results()
         # 清洗（若啟用）
         if self.enable_cleaning and not df.empty:
@@ -380,10 +388,19 @@ class BaselineAnalyzer:
             self.logger.info(f"參數比較圖表已保存: {chart_path}")
             return str(chart_path)
         
-        # 設置圖表大小和佈局
-        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-        fig.suptitle(f"{self.summary['test_type'].replace('_', ' ').title()} 參數掃描結果分析", 
-                     fontsize=16, fontweight='bold')
+        # 檢查可用的欄位
+        available_columns = df.columns.tolist()
+        has_new_metrics = all(col in available_columns for col in ['signal_switch_count', 'avg_traffic_rate'])
+        
+        # 根據可用欄位決定佈局
+        if has_new_metrics:
+            fig, axes = plt.subplots(3, 2, figsize=(16, 18))
+            fig.suptitle(f"{self.summary['test_type'].replace('_', ' ').title()} 參數掃描結果分析（增強版）", 
+                         fontsize=16, fontweight='bold')
+        else:
+            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+            fig.suptitle(f"{self.summary['test_type'].replace('_', ' ').title()} 參數掃描結果分析", 
+                         fontsize=16, fontweight='bold')
         
         # 獲取唯一的機器人數量
         robot_counts = sorted(df['robot_count'].unique())
@@ -391,8 +408,13 @@ class BaselineAnalyzer:
         # 定義顏色映射
         colors = plt.cm.Set1(np.linspace(0, 1, len(robot_counts)))
         
+        # 將 axes 展平為一維數組
+        axes_flat = axes.flatten() if has_new_metrics else axes.flatten()
+        plot_idx = 0
+        
         # 1. 完成率 vs 參數（顯示樣本數 n）
-        ax1 = axes[0, 0]
+        ax1 = axes_flat[plot_idx]
+        plot_idx += 1
         for i, robot_count in enumerate(robot_counts):
             subset = df[df['robot_count'] == robot_count]
             # 計算每個參數的平均值和標準差
@@ -419,29 +441,32 @@ class BaselineAnalyzer:
         ax1.grid(True, alpha=0.3)
         ax1.set_ylim(0, 1.1)
         
-        # 2. 平均等待時間 vs 參數
-        ax2 = axes[0, 1]
-        for i, robot_count in enumerate(robot_counts):
-            subset = df[df['robot_count'] == robot_count]
-            grouped = subset.groupby('parameter').agg({
-                'avg_wait_time': ['mean', 'std']
-            })
+        # 2. 平均等待時間 vs 參數（如果有此欄位）
+        if 'avg_wait_time' in available_columns:
+            ax2 = axes_flat[plot_idx]
+            plot_idx += 1
+            for i, robot_count in enumerate(robot_counts):
+                subset = df[df['robot_count'] == robot_count]
+                grouped = subset.groupby('parameter').agg({
+                    'avg_wait_time': ['mean', 'std']
+                })
+                
+                x = grouped.index
+                y = grouped['avg_wait_time']['mean']
+                yerr = grouped['avg_wait_time']['std']
+                
+                ax2.errorbar(x, y, yerr=yerr, marker='s', label=f'{robot_count} 機器人',
+                            color=colors[i], capsize=5, markersize=8)
             
-            x = grouped.index
-            y = grouped['avg_wait_time']['mean']
-            yerr = grouped['avg_wait_time']['std']
-            
-            ax2.errorbar(x, y, yerr=yerr, marker='s', label=f'{robot_count} 機器人',
-                        color=colors[i], capsize=5, markersize=8)
-        
-        ax2.set_xlabel(self._get_parameter_label())
-        ax2.set_ylabel('平均等待時間 (ticks)')
-        ax2.set_title('平均等待時間 vs 參數設定')
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
+            ax2.set_xlabel(self._get_parameter_label())
+            ax2.set_ylabel('平均等待時間 (ticks)')
+            ax2.set_title('平均等待時間 vs 參數設定')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
         
         # 3. 機器人利用率 vs 參數
-        ax3 = axes[1, 0]
+        ax3 = axes_flat[plot_idx]
+        plot_idx += 1
         for i, robot_count in enumerate(robot_counts):
             subset = df[df['robot_count'] == robot_count]
             grouped = subset.groupby('parameter').agg({
@@ -463,30 +488,78 @@ class BaselineAnalyzer:
         ax3.set_ylim(0, 1.1)
         
         # 4. 能源效率 vs 參數（每訂單能源消耗，越低越好）
-        ax4 = axes[1, 1]
-        for i, robot_count in enumerate(robot_counts):
-            subset = df[df['robot_count'] == robot_count]
-            
-            grouped = subset.groupby('parameter').agg({
-                'energy_per_order': ['mean', 'std']
-            })
-            
-            # 過濾掉 NaN 值
-            grouped = grouped.dropna()
-            
-            if len(grouped) > 0:
-                x = grouped.index
-                y = grouped['energy_per_order']['mean']
-                yerr = grouped['energy_per_order']['std']
+        if 'energy_per_order' in available_columns:
+            ax4 = axes_flat[plot_idx]
+            plot_idx += 1
+            for i, robot_count in enumerate(robot_counts):
+                subset = df[df['robot_count'] == robot_count]
                 
-                ax4.errorbar(x, y, yerr=yerr, marker='D', label=f'{robot_count} 機器人',
-                            color=colors[i], capsize=5, markersize=8)
+                grouped = subset.groupby('parameter').agg({
+                    'energy_per_order': ['mean', 'std']
+                })
+                
+                # 過濾掉 NaN 值
+                grouped = grouped.dropna()
+                
+                if len(grouped) > 0:
+                    x = grouped.index
+                    y = grouped['energy_per_order']['mean']
+                    yerr = grouped['energy_per_order']['std']
+                    
+                    ax4.errorbar(x, y, yerr=yerr, marker='D', label=f'{robot_count} 機器人',
+                                color=colors[i], capsize=5, markersize=8)
+            
+            ax4.set_xlabel(self._get_parameter_label())
+            ax4.set_ylabel('每訂單能源消耗')
+            ax4.set_title('能源效率 vs 參數設定')
+            ax4.legend()
+            ax4.grid(True, alpha=0.3)
         
-        ax4.set_xlabel(self._get_parameter_label())
-        ax4.set_ylabel('每訂單能源消耗')
-        ax4.set_title('能源效率 vs 參數設定')
-        ax4.legend()
-        ax4.grid(True, alpha=0.3)
+        # 5. 信號切換次數 vs 參數（如果有新指標）
+        if has_new_metrics and plot_idx < len(axes_flat):
+            ax5 = axes_flat[plot_idx]
+            plot_idx += 1
+            for i, robot_count in enumerate(robot_counts):
+                subset = df[df['robot_count'] == robot_count]
+                grouped = subset.groupby('parameter').agg({
+                    'signal_switch_count': ['mean', 'std']
+                })
+                
+                x = grouped.index
+                y = grouped['signal_switch_count']['mean']
+                yerr = grouped['signal_switch_count']['std']
+                
+                ax5.errorbar(x, y, yerr=yerr, marker='s', label=f'{robot_count} 機器人',
+                            color=colors[i], capsize=5, markersize=8)
+            
+            ax5.set_xlabel(self._get_parameter_label())
+            ax5.set_ylabel('信號切換次數')
+            ax5.set_title('交通控制穩定性 vs 參數設定')
+            ax5.legend()
+            ax5.grid(True, alpha=0.3)
+        
+        # 6. 平均交通流率 vs 參數（如果有新指標）
+        if has_new_metrics and plot_idx < len(axes_flat):
+            ax6 = axes_flat[plot_idx]
+            plot_idx += 1
+            for i, robot_count in enumerate(robot_counts):
+                subset = df[df['robot_count'] == robot_count]
+                grouped = subset.groupby('parameter').agg({
+                    'avg_traffic_rate': ['mean', 'std']
+                })
+                
+                x = grouped.index
+                y = grouped['avg_traffic_rate']['mean']
+                yerr = grouped['avg_traffic_rate']['std']
+                
+                ax6.errorbar(x, y, yerr=yerr, marker='v', label=f'{robot_count} 機器人',
+                            color=colors[i], capsize=5, markersize=8)
+            
+            ax6.set_xlabel(self._get_parameter_label())
+            ax6.set_ylabel('平均交通流率')
+            ax6.set_title('交通流暢度 vs 參數設定')
+            ax6.legend()
+            ax6.grid(True, alpha=0.3)
         
         # 調整佈局
         plt.tight_layout()
@@ -500,7 +573,7 @@ class BaselineAnalyzer:
         return str(chart_path)
     
     def generate_heatmap_analysis(self) -> str:
-        """生成熱力圖分析"""
+        """生成熱力圖分析（增強版）"""
         df = self._load_all_results()
         
         # 檢查是否有數據
@@ -521,11 +594,41 @@ class BaselineAnalyzer:
             self.logger.info(f"熱力圖分析已保存: {chart_path}")
             return str(chart_path)
         
-        # 創建樞紐表
-        metrics = ['completion_rate', 'avg_wait_time', 'robot_utilization']
-        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+        # 檢查可用的欄位
+        available_columns = df.columns.tolist()
+        
+        # 定義所有可能的指標
+        all_metrics = ['completion_rate', 'energy_per_order', 'signal_switch_count', 
+                      'avg_traffic_rate', 'robot_utilization', 'total_energy', 'avg_wait_time']
+        
+        # 只使用實際存在的指標
+        metrics = [m for m in all_metrics if m in available_columns]
+        
+        if not metrics:
+            self.logger.warning("沒有找到可用的指標欄位")
+            return ""
+        
+        # 根據指標數量決定佈局
+        n_metrics = len(metrics)
+        if n_metrics <= 3:
+            rows, cols = 1, n_metrics
+        elif n_metrics <= 6:
+            rows, cols = 2, 3
+        else:
+            rows = (n_metrics + 2) // 3
+            cols = 3
+        
+        fig, axes = plt.subplots(rows, cols, figsize=(cols * 6.5, rows * 7))
         fig.suptitle(f"{self.summary['test_type'].replace('_', ' ').title()} 參數熱力圖分析", 
                      fontsize=16, fontweight='bold')
+        
+        # 如果只有一個子圖，確保 axes 是數組
+        if n_metrics == 1:
+            axes = [axes]
+        elif rows == 1 or cols == 1:
+            axes = axes.flatten()
+        else:
+            axes = axes.flatten()
         
         for idx, metric in enumerate(metrics):
             # 創建樞紐表（參數 x 機器人數量）
@@ -540,18 +643,36 @@ class BaselineAnalyzer:
             ax = axes[idx]
             
             # 選擇適當的顏色映射
-            if metric == 'avg_wait_time':
-                cmap = 'YlOrRd'  # 等待時間越低越好
+            if metric in ['avg_wait_time', 'energy_per_order', 'signal_switch_count', 'total_energy']:
+                cmap = 'YlOrRd_r'  # 反轉顏色，因為這些指標越低越好
             else:
-                cmap = 'YlGn'  # 完成率和利用率越高越好
+                cmap = 'YlGn'  # 完成率、利用率、交通流率越高越好
             
-            sns.heatmap(pivot, annot=True, fmt='.3f', cmap=cmap, 
+            # 添加數值標註格式
+            if metric in ['completion_rate', 'robot_utilization']:
+                fmt = '.1%'  # 百分比格式
+            elif metric == 'avg_traffic_rate':
+                fmt = '.4f'  # 小數點後4位
+            elif metric in ['signal_switch_count', 'total_energy']:
+                fmt = '.0f'  # 整數
+            else:
+                fmt = '.1f'  # 一般格式
+            
+            sns.heatmap(pivot, annot=True, fmt=fmt, cmap=cmap, 
                        cbar_kws={'label': self._get_metric_label(metric)},
                        ax=ax)
             
             ax.set_title(self._get_metric_title(metric))
             ax.set_xlabel('機器人數量')
             ax.set_ylabel(self._get_parameter_label())
+            
+            # 旋轉 x 軸標籤以避免重疊
+            ax.set_xticklabels(ax.get_xticklabels(), rotation=0)
+            ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+        
+        # 隱藏多餘的子圖
+        for idx in range(n_metrics, len(axes)):
+            axes[idx].set_visible(False)
         
         plt.tight_layout()
         
@@ -564,7 +685,7 @@ class BaselineAnalyzer:
         return str(chart_path)
     
     def generate_optimal_parameter_report(self) -> str:
-        """生成最優參數報告"""
+        """生成最優參數報告（增強版）"""
         df = self._load_all_results()
         
         # 生成報告
@@ -589,9 +710,13 @@ class BaselineAnalyzer:
             self.logger.info(f"最優參數報告已保存: {report_path}")
             return str(report_path)
         
-        # 計算每個參數組合的綜合分數
+        # 檢查可用的欄位
+        available_columns = df.columns.tolist()
+        has_new_metrics = all(col in available_columns for col in ['signal_switch_count', 'avg_traffic_rate'])
+        
+        # 計算基本綜合分數（適用於舊數據）
         # 分數 = 完成率 * 0.5 + 利用率 * 0.3 - 標準化等待時間 * 0.2
-        if df['avg_wait_time'].max() > 0:
+        if 'avg_wait_time' in available_columns and df['avg_wait_time'].max() > 0:
             df['wait_time_normalized'] = df['avg_wait_time'] / df['avg_wait_time'].max()
         else:
             df['wait_time_normalized'] = 0
@@ -602,16 +727,61 @@ class BaselineAnalyzer:
             df['wait_time_normalized'] * 0.2
         )
         
+        # 如果有新指標，計算更多綜合分數
+        if has_new_metrics:
+            # 1. 效率優先分數（重視完成率和能源效率）
+            if 'energy_per_order' in available_columns and df['energy_per_order'].max() > 0:
+                df['energy_normalized'] = 1 - (df['energy_per_order'] / df['energy_per_order'].max())
+            else:
+                df['energy_normalized'] = 0
+                
+            df['efficiency_score'] = (
+                df['completion_rate'] * 0.5 + 
+                df['energy_normalized'] * 0.5
+            )
+            
+            # 2. 穩定性優先分數（重視信號切換少和交通流暢）
+            if df['signal_switch_count'].max() > 0:
+                df['signal_normalized'] = 1 - (df['signal_switch_count'] / df['signal_switch_count'].max())
+            else:
+                df['signal_normalized'] = 0
+                
+            if df['avg_traffic_rate'].max() > 0:
+                df['traffic_normalized'] = df['avg_traffic_rate'] / df['avg_traffic_rate'].max()
+            else:
+                df['traffic_normalized'] = 0
+                
+            df['stability_score'] = (
+                df['completion_rate'] * 0.3 + 
+                df['signal_normalized'] * 0.4 +
+                df['traffic_normalized'] * 0.3
+            )
+            
+            # 3. 綜合平衡分數
+            df['balanced_score'] = (
+                df['completion_rate'] * 0.4 + 
+                df.get('energy_normalized', 0) * 0.3 +
+                df.get('signal_normalized', 0) * 0.2 +
+                df['robot_utilization'] * 0.1
+            )
+        
         # 找出每個機器人數量的最優參數
         optimal_params = {}
-        for robot_count in df['robot_count'].unique():
+        for robot_count in sorted(df['robot_count'].unique()):
             subset = df[df['robot_count'] == robot_count]
             grouped = subset.groupby('parameter').agg({
                 'composite_score': 'mean',
                 'completion_rate': 'mean',
-                'avg_wait_time': 'mean',
                 'robot_utilization': 'mean'
             })
+            
+            # 添加可用的其他指標
+            if 'avg_wait_time' in available_columns:
+                grouped['avg_wait_time'] = subset.groupby('parameter')['avg_wait_time'].mean()
+            if 'energy_per_order' in available_columns:
+                grouped['energy_per_order'] = subset.groupby('parameter')['energy_per_order'].mean()
+            if 'total_energy' in available_columns:
+                grouped['total_energy'] = subset.groupby('parameter')['total_energy'].mean()
             
             # 找出最高分數的參數
             if len(grouped) > 0:
@@ -622,14 +792,29 @@ class BaselineAnalyzer:
                     'parameter': best_param,
                     'composite_score': best_metrics['composite_score'],
                     'completion_rate': best_metrics['completion_rate'],
-                    'avg_wait_time': best_metrics['avg_wait_time'],
                     'robot_utilization': best_metrics['robot_utilization']
                 }
+                
+                # 添加可選指標
+                if 'avg_wait_time' in grouped.columns:
+                    optimal_params[robot_count]['avg_wait_time'] = best_metrics['avg_wait_time']
+                if 'energy_per_order' in grouped.columns:
+                    optimal_params[robot_count]['energy_per_order'] = best_metrics['energy_per_order']
         
         # 添加評分標準和最優參數推薦
         report_lines.extend([
             f"\n## 評分標準",
             "- 綜合評分 = 完成率×0.5 + 利用率×0.3 - 標準化等待時間×0.2",
+        ])
+        
+        if has_new_metrics:
+            report_lines.extend([
+                "- 效率優先分數 = 完成率×0.5 + 能源效率×0.5",
+                "- 穩定性優先分數 = 完成率×0.3 + 信號穩定性×0.4 + 交通流暢度×0.3",
+                "- 綜合平衡分數 = 完成率×0.4 + 能源效率×0.3 + 信號穩定性×0.2 + 機器人利用率×0.1",
+            ])
+        
+        report_lines.extend([
             f"\n## 最優參數推薦",
             ""
         ])
@@ -641,10 +826,17 @@ class BaselineAnalyzer:
                 f"- **最優參數**: {params['parameter']}",
                 f"- 綜合評分: {params['composite_score']:.3f}",
                 f"- 訂單完成率: {params['completion_rate']:.1%}",
-                f"- 平均等待時間: {params['avg_wait_time']:.1f} ticks",
-                f"- 機器人利用率: {params['robot_utilization']:.1%}",
-                ""
             ])
+            
+            if 'avg_wait_time' in params:
+                report_lines.append(f"- 平均等待時間: {params['avg_wait_time']:.1f} ticks")
+            
+            report_lines.append(f"- 機器人利用率: {params['robot_utilization']:.1%}")
+            
+            if 'energy_per_order' in params:
+                report_lines.append(f"- 每訂單能耗: {params['energy_per_order']:.1f}")
+            
+            report_lines.append("")
         
         # 添加詳細數據表格
         report_lines.extend([
@@ -654,30 +846,60 @@ class BaselineAnalyzer:
         ])
         
         # 創建詳細數據表
-        summary_df = df.groupby(['robot_count', 'parameter']).agg({
+        agg_dict = {
             'composite_score': 'mean',
             'completion_rate': 'mean',
-            'avg_wait_time': 'mean',
-            'robot_utilization': 'mean',
-            'total_energy': 'mean'
-        }).round(3)
+            'robot_utilization': 'mean'
+        }
+        
+        # 添加可選欄位
+        if 'avg_wait_time' in available_columns:
+            agg_dict['avg_wait_time'] = 'mean'
+        if 'total_energy' in available_columns:
+            agg_dict['total_energy'] = 'mean'
+        if 'energy_per_order' in available_columns:
+            agg_dict['energy_per_order'] = 'mean'
+        
+        summary_df = df.groupby(['robot_count', 'parameter']).agg(agg_dict).round(3)
         
         summary_df = summary_df.sort_values(['robot_count', 'composite_score'], 
                                           ascending=[True, False])
         
         # 轉換為 Markdown 表格
-        report_lines.append("| 機器人數 | 參數 | 綜合評分 | 完成率 | 等待時間 | 利用率 | 總能耗 |")
-        report_lines.append("|---------|------|---------|--------|----------|--------|--------|")
+        header = "| 機器人數 | 參數 | 綜合評分 | 完成率 | 利用率"
+        separator = "|---------|------|---------|--------|--------"
+        
+        if 'avg_wait_time' in summary_df.columns:
+            header += " | 等待時間"
+            separator += "|----------"
+        if 'energy_per_order' in summary_df.columns:
+            header += " | 每訂單能耗"
+            separator += "|------------"
+        if 'total_energy' in summary_df.columns:
+            header += " | 總能耗"
+            separator += "|--------|"
+        
+        header += " |"
+        separator += "|"
+        
+        report_lines.append(header)
+        report_lines.append(separator)
         
         for (robot_count, parameter), metrics in summary_df.iterrows():
-            report_lines.append(
-                f"| {robot_count} | {parameter} | "
-                f"{metrics['composite_score']:.3f} | "
-                f"{metrics['completion_rate']:.1%} | "
-                f"{metrics['avg_wait_time']:.1f} | "
-                f"{metrics['robot_utilization']:.1%} | "
-                f"{metrics['total_energy']:.0f} |"
-            )
+            row = f"| {robot_count} | {parameter} | "
+            row += f"{metrics['composite_score']:.3f} | "
+            row += f"{metrics['completion_rate']:.1%} | "
+            row += f"{metrics['robot_utilization']:.1%}"
+            
+            if 'avg_wait_time' in metrics:
+                row += f" | {metrics['avg_wait_time']:.1f}"
+            if 'energy_per_order' in metrics:
+                row += f" | {metrics['energy_per_order']:.1f}"
+            if 'total_energy' in metrics:
+                row += f" | {metrics['total_energy']:.0f}"
+            
+            row += " |"
+            report_lines.append(row)
         
         # 保存報告
         report_path = self.analysis_dir / f"{self.summary.get('test_type', 'unknown')}_optimal_parameters.md"
@@ -699,7 +921,11 @@ class BaselineAnalyzer:
         labels = {
             'completion_rate': '完成率',
             'avg_wait_time': '平均等待時間',
-            'robot_utilization': '利用率'
+            'robot_utilization': '利用率',
+            'energy_per_order': '每訂單能耗',
+            'signal_switch_count': '信號切換次數',
+            'avg_traffic_rate': '平均交通流率',
+            'total_energy': '總能源消耗'
         }
         return labels.get(metric, metric)
     
@@ -708,7 +934,11 @@ class BaselineAnalyzer:
         titles = {
             'completion_rate': '訂單完成率',
             'avg_wait_time': '平均等待時間',
-            'robot_utilization': '機器人利用率'
+            'robot_utilization': '機器人利用率',
+            'energy_per_order': '每訂單能源消耗',
+            'signal_switch_count': '信號切換次數',
+            'avg_traffic_rate': '平均交通流率',
+            'total_energy': '總能源消耗'
         }
         return titles.get(metric, metric)
     
