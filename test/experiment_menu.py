@@ -18,6 +18,7 @@ import json
 from datetime import datetime
 import time
 from typing import Optional, List, Dict, Any
+import re
 import numpy as np
 
 # 加入專案根目錄到 Python 路徑
@@ -415,18 +416,21 @@ class ExperimentMenu:
         
         Prompt.ask("\n按 Enter 返回監控畫面", default="")
     
-    def _get_robot_counts(self) -> List[int]:
-        """獲取要測試的機器人數量"""
+    def _get_robot_counts(self, default_list: Optional[List[int]] = None) -> List[int]:
+        """獲取要測試的機器人數量
+        若提供 default_list，優先使用該預設清單；否則使用 [20, 25, 30, 35, 40]
+        """
+        default_list = default_list or [20, 25, 30, 35, 40]
         self.console.print("\n📊 請設定要測試的機器人數量:")
-        
-        use_default = Confirm.ask("使用預設數量 [20, 25, 30, 35, 40]？", default=True)
-        
+
+        use_default = Confirm.ask(f"使用預設數量 {default_list}？", default=True)
+
         if use_default:
-            return [20, 25, 30, 35, 40]
-        
-        robot_counts = []
+            return default_list
+
+        robot_counts: List[int] = []
         self.console.print("請輸入機器人數量（輸入 0 結束）:")
-        
+
         while True:
             count = IntPrompt.ask("機器人數量", default=0)
             if count == 0:
@@ -437,14 +441,14 @@ class ExperimentMenu:
             if count in robot_counts:
                 self.console.print(f"⚠️  數量 {count} 已經存在")
                 continue
-            
+
             robot_counts.append(count)
             self.console.print(f"✅ 已加入: {count}")
-        
+
         if not robot_counts:
             self.console.print("⚠️  未設定任何數量，使用預設值")
-            return [20, 25, 30, 35, 40]
-        
+            return default_list
+
         robot_counts.sort()
         return robot_counts
     
@@ -472,6 +476,51 @@ class ExperimentMenu:
             return IntPrompt.ask("請輸入 tick 數", default=100000, show_default=True)
         else:
             return options[choice][1]
+
+    def _get_time_ratios(self, default_list: Optional[List[str]] = None) -> List[str]:
+        """獲取 Time-Based 的時間配比清單
+        - default_list 預設為 ["50:50", "60:40", "65:35", "70:30", "75:25", "80:20"]
+        - 自訂輸入格式須為 A:B 且 A+B=100
+        """
+        default_list = default_list or ["50:50", "60:40", "65:35", "70:30", "75:25", "80:20"]
+
+        self.console.print("\n⏱️  請設定時間配比參數:")
+        use_default = Confirm.ask(f"使用預設時間配比 {default_list}？", default=True)
+        if use_default:
+            return default_list
+
+        ratios: List[str] = []
+        self.console.print("請輸入時間配比（格式如 70:30，輸入 0 結束）:")
+
+        while True:
+            ratio_str = Prompt.ask("時間配比", default="0").strip()
+            if ratio_str in ("0", ""):
+                break
+
+            match = re.fullmatch(r"\s*(\d{1,3})\s*:\s*(\d{1,3})\s*", ratio_str)
+            if not match:
+                self.console.print("❌ 格式錯誤，請使用 'A:B'（例如 70:30）")
+                continue
+
+            a = int(match.group(1))
+            b = int(match.group(2))
+            if a < 0 or b < 0 or a > 100 or b > 100 or (a + b != 100):
+                self.console.print("❌ A+B 必須等於 100，且每個值需介於 0~100")
+                continue
+
+            normalized = f"{a}:{b}"
+            if normalized in ratios:
+                self.console.print(f"⚠️  配比 {normalized} 已存在")
+                continue
+
+            ratios.append(normalized)
+            self.console.print(f"✅ 已加入: {normalized}")
+
+        if not ratios:
+            self.console.print("⚠️  未設定任何配比，使用預設值")
+            return default_list
+
+        return ratios
     
     def _get_parallel_option(self) -> bool:
         """獲取是否並行執行"""
@@ -795,8 +844,8 @@ class ExperimentMenu:
         self.console.print(Panel("⚡ Time-Based 參數掃描", style="bold yellow"))
         
         # 測試參數設定
-        robot_counts = [25, 30]
-        time_ratios = ["50:50", "60:40", "65:35", "70:30", "75:25", "80:20"]
+        robot_counts = self._get_robot_counts([25, 30])
+        time_ratios = self._get_time_ratios(["50:50", "60:40", "65:35", "70:30", "75:25", "80:20"])
         runs_per_config = self._get_runs_per_config()
         test_ticks = self._get_test_ticks()
         parallel = self._get_parallel_option()
@@ -844,7 +893,7 @@ class ExperimentMenu:
         self.console.print(Panel("📊 Queue-Based 參數掃描", style="bold cyan"))
         
         # 測試參數設定
-        robot_counts = [25, 30]
+        robot_counts = self._get_robot_counts([25, 30])
         queue_thresholds = [2, 3, 4, 5, 6]
         runs_per_config = self._get_runs_per_config()
         test_ticks = self._get_test_ticks()

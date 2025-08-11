@@ -1,5 +1,18 @@
 # Changelog
 
+## 2025-08-11 (選單自訂功能強化)
+- 新增：`test/experiment_menu.py` 支援 Time-Based 自訂「時間配比」清單（格式 A:B 且 A+B=100）。
+- 新增：Time-Based 與 Queue-Based 均支援自訂「機器人數量」清單（預設 `[25, 30]`，可改為自輸入）。
+- 調整：抽取 `_get_time_ratios`、擴充 `_get_robot_counts(default_list)`，介面提示與驗證一致化。
+
+## 2025-08-11 (論文修改計畫 PLAN 2)
+- 新增：制定一週衝刺計畫，將 NERL 重新定位為「穩定性與能源效率優化器」
+- 計畫：Day 1-2 問題診斷與評估系統強化
+- 計畫：Day 3-4 NERL 獎勵函數基於理論依據重設計
+- 計畫：Day 5-6 快速訓練與迭代
+- 計畫：Day 7 對比實驗與結果分析
+- 文檔：更新 THESIS_REVISION_PLAN.md 加入預期結果與論文敘事策略
+
 ## 2025-06- (工作空間隔離強化)
 - 新增：`NETLOGO_STATE_FILE` / `NETLOGO_STATE_DIR` 優先策略，狀態檔完全隔離（`netlogo.py`）。
 - 調整：`evaluate.py` 與 `netlogo.py` 對齊狀態檔讀寫邏輯；支援 `KEEP_STATE_FILE`。
