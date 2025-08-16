@@ -1,3 +1,5 @@
+test/train_results/
+!test/train_results/.gitkeep
 # Python 相關檔案
 __pycache__/
 *.pyc
