@@ -80,11 +80,10 @@
     - 預設 `USE_EXISTING_ORDERS=1`，避免在併行或多次評估時重建/合併訂單導致細微差異
   - 影響：在相同評估時長下，各代/各個體的 `total_orders` 不再因共享檔或重建流程而出現不一致
 
-## 2025-08-17 (Gitignore 更新)
-- 調整：將 `test/train_results/` 加入 `.gitignore`，避免大量每代輸出被版控汙染。
-- 新增：保留 `test/train_results/.gitkeep` 以確保目錄存在。
-
-## 2025-08-17 (合併衝突解決)
-- 修正：解決 `THESIS_REVISION_PLAN.md` 中的 Git 合併衝突
-- 保留：一週衝刺計畫的完整內容，包括 Day 1-7 的詳細實施步驟
-- 完成：論文修改計畫的合併，準備開始執行第一階段
+## 2025-08-17 (GLOBAL Fitness 尾端等待強化)
+- 新增：在 `ai/unified_reward_system.py` 的 GLOBAL fitness 中加入 P95/P99 等待懲罰：
+  - 權重：`lambda_p95`、`lambda_p99`，預設 0.4 / 0.6（可由 `ai/config/nerl_fitness_config.json` 覆寫）
+  - 門檻：`P95_thr`、`P99_thr`，預設 400 / 500 ticks
+  - 計算：基於 `waiting_time_records` 的事件分佈，估計 P95/P99，並做 0~1 正規化
+  - 目的：讓演化更聚焦尾端延遲，避免僅看 max/avg 的震盪與遮蔽
+ - 每代輸出：`best_individual_metrics` 新增 `p95_wait`、`p99_wait` 欄位

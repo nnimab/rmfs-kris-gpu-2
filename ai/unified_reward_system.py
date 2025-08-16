@@ -62,14 +62,20 @@ class UnifiedRewardSystem:
                 'lambda_sg': 1.0,
                 'lambda_util': 0.5,
                 # 新增：每事件平均等待懲罰
-                'lambda_avg_wait': 0.3
+                'lambda_avg_wait': 0.3,
+                # 新增：尾端等待懲罰（P95/P99）
+                'lambda_p95': 0.4,
+                'lambda_p99': 0.6
             },
             'refs': {
                 'W_thr': 500.0,
                 'SG_thr': 1000.0,  # 預設：可透過配置覆寫，建議以 P95 校準
                 'U_ref': 0.8807,
                 # 新增：每事件平均等待的正規化門檻（ticks）
-                'AW_thr': 50.0
+                'AW_thr': 50.0,
+                # 新增：P95/P99 尾端等待正規化門檻（ticks）
+                'P95_thr': 400.0,
+                'P99_thr': 500.0
             }
         }
         self._load_fitness_config()
@@ -387,17 +393,34 @@ class UnifiedRewardSystem:
         stop_go_norm = min(1.0, total_stop_go / SG_thr)
         util_shortfall = max(0.0, (U_ref - avg_utilization) / U_ref)
 
-        # 新增：每事件平均等待（AvgWait）
-        # 從系統指標重算（若之前尚未計算過）
+        # 事件等待時間分佈統計（Avg / P95 / P99）
+        wait_values: list = []
         total_wait_time = 0.0
         wait_events = 0
         for inter in getattr(warehouse.intersection_manager, 'intersections', []):
             if hasattr(inter, 'waiting_time_records') and inter.waiting_time_records:
-                wait_events += len(inter.waiting_time_records)
                 for _, wt in inter.waiting_time_records:
-                    total_wait_time += wt
+                    if wt and wt > 0:
+                        wait_values.append(float(wt))
+                        total_wait_time += float(wt)
+                        wait_events += 1
         avg_wait = (total_wait_time / wait_events) if wait_events > 0 else 0.0
         avg_wait_norm = min(1.0, avg_wait / AW_thr)
+
+        # P95 / P99（當樣本不足時回退到 max_wait_time）
+        p95 = max_wait_time
+        p99 = max_wait_time
+        if wait_values:
+            arr = np.array(wait_values)
+            try:
+                p95 = float(np.percentile(arr, 95))
+                p99 = float(np.percentile(arr, 99))
+            except Exception:
+                pass
+        P95_thr = max(1e-6, float(ref.get('P95_thr', 400.0)))
+        P99_thr = max(1e-6, float(ref.get('P99_thr', 500.0)))
+        p95_norm = min(1.0, p95 / P95_thr)
+        p99_norm = min(1.0, p99 / P99_thr)
 
         # Fitness 組合
         fitness = (
@@ -407,6 +430,8 @@ class UnifiedRewardSystem:
             - (fw['lambda_sg'] * stop_go_norm)
             - (fw['lambda_util'] * util_shortfall)
             - (fw.get('lambda_avg_wait', 0.0) * avg_wait_norm)
+            - (fw.get('lambda_p95', 0.0) * p95_norm)
+            - (fw.get('lambda_p99', 0.0) * p99_norm)
         )
 
         # 重置與回傳
@@ -634,6 +659,20 @@ class UnifiedRewardSystem:
             self.episode_data['avg_wait_time'] = total_wait_time / len(all_wait_events)
         else:
             self.episode_data['avg_wait_time'] = 0.0
+
+        # 新增：尾端等待指標（P95 / P99）
+        if all_wait_events:
+            try:
+                arr = np.array(all_wait_events, dtype=float)
+                self.episode_data['p95_wait'] = float(np.percentile(arr, 95))
+                self.episode_data['p99_wait'] = float(np.percentile(arr, 99))
+            except Exception:
+                # 回退到最大等待
+                self.episode_data['p95_wait'] = float(max_wait_time)
+                self.episode_data['p99_wait'] = float(max_wait_time)
+        else:
+            self.episode_data['p95_wait'] = 0.0
+            self.episode_data['p99_wait'] = 0.0
         
         # 更新停止-啟動計數（從 warehouse 獲取）
         self.episode_data['total_stop_go'] = getattr(warehouse, 'stop_and_go', 0)
