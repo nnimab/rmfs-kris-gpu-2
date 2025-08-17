@@ -57,7 +57,7 @@ class UnifiedRewardSystem:
         self.fitness_config = {
             'weights': {
                 'w_orders': 1.0,
-                'w_energy': 0.004334,
+                'w_energy': 0.00333,
                 'lambda_wait': 1.0,
                 'lambda_sg': 1.0,
                 'lambda_util': 0.5,

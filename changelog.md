@@ -88,3 +88,8 @@
   - 計算：基於 `waiting_time_records` 的事件分佈，估計 P95/P99，並做 0~1 正規化
   - 目的：讓演化更聚焦尾端延遲，避免僅看 max/avg 的震盪與遮蔽
   - 每代輸出：`best_individual_metrics` 新增 `p95_wait`、`p99_wait` 欄位
+
+## 2025-08-17 (全局獎勵與訓練設定調整)
+- 調整：`ai/unified_reward_system.py` 將 GLOBAL fitness 的能源權重 `w_energy` 從 `0.004334` 降到 `0.00333`，降低能耗對跨情境的不公平影響。
+- 固定：`test/experiment_menu.py` 第 9 項 NERL 訓練前設置 `ROBOT_COUNT=25`。
+- 固定：`train.py` 的 `run_nerl_training` 執行前設置 `ROBOT_COUNT=25`，確保一致性。

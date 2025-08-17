@@ -402,6 +402,8 @@ def run_nerl_training(generations, population_size, evaluation_ticks, reward_mod
         evaluation_ticks: 每個個體的評估時間
         reward_mode: 獎勵模式，"global"或"step"（V6.0已改進）
     """
+    # 固定本次訓練的機器人數量為 25 台
+    os.environ['ROBOT_COUNT'] = '25'
     # 確保主訓練 logger 已初始化（避免 NoneType 錯誤）
     global logger
     if logger is None:

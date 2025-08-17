@@ -800,6 +800,8 @@ class ExperimentMenu:
         from rich.prompt import IntPrompt, Confirm
         from datetime import datetime
         import os
+        # 固定 NERL 訓練時的機器人數量為 25 台
+        os.environ['ROBOT_COUNT'] = '25'
         
         self.console.print(Panel("🤖 訓練 NERL (Global)", style="bold green"))
         generations = IntPrompt.ask("進化代數", default=20)
