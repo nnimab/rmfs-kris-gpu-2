@@ -81,6 +81,9 @@ class ExperimentMenu:
             "📉 [bold magenta]時間序列分析[/bold magenta] - 分析測試的時間序列數據",
             "🧹 [bold red]清理臨時檔案[/bold red] - 清理測試產生的臨時檔案",
             "📋 [bold cyan]顯示歷史測試[/bold cyan] - 查看過往測試記錄",
+            "🏁 [bold white]最終比較實驗（三控制器）[/bold white] - NERL Global vs Time-Based vs 無控制",
+            "📈 [bold white]生成最終比較圖表[/bold white] - 匯整三控制器的指標與時間序列",
+            "📊 [bold green]分析 NERL 訓練結果（training_runs）[/bold green] - 針對單次訓練輸出圖表與表格",
             "🤖 [bold green]訓練 NERL (Global)[/bold green] - 一鍵啟動 NERL 全局獎勵訓練",
             "❌ [bold dim]退出程式[/bold dim]"
         ]
@@ -1120,6 +1123,180 @@ class ExperimentMenu:
             self.console.print("❌ 找不到 BaselineAnalyzer，請確保已實作 baseline_analyzer.py")
         except Exception as e:
             self.console.print(f"❌ 生成分析報告時發生錯誤: {e}")
+
+    def run_final_comparison_experiment(self):
+        """一次性比較三種控制器（NERL Global、Time-Based、無控制），支援多次重複與並行執行。
+        - NERL 使用 models/final_models/nerl_global_best.pth
+        - Time-Based 使用預設參數
+        - 無控制
+        - 結果與時間序列數據分別輸出到 test/final_exp_results/<controller>/<SIMULATION_ID>/
+        """
+        from rich.prompt import IntPrompt, Confirm
+        from rich.table import Table
+        from rich.progress import Progress, SpinnerColumn, TextColumn
+        import subprocess
+        import sys
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        self.console.print(Panel("🏁 最終比較實驗（三控制器）", style="bold white"))
+
+        # 參數設定
+        eval_ticks = self._get_test_ticks()
+        runs_per_controller = self._get_runs_per_config()
+        robot_count = IntPrompt.ask("機器人數量", default=25, show_default=True)
+        parallel = self._get_parallel_option()
+        max_parallel = self._get_max_parallel_option(parallel)
+        ts_interval = IntPrompt.ask("時間序列採樣間隔（ticks）", default=100, show_default=True)
+
+        # 控制器規格與輸出基底
+        project_root = Path(__file__).parent.parent
+        evaluate_script = project_root / "evaluate.py"
+        final_results_root = project_root / "test" / "final_exp_results"
+        final_results_root.mkdir(parents=True, exist_ok=True)
+
+        controllers = [
+            {"label": "nerl_global", "spec": f"nerl:{(project_root / 'models' / 'final_models' / 'nerl_global_best.pth').as_posix()}"},
+            {"label": "time_based", "spec": "time_based"},
+            {"label": "no_controller", "spec": "none"}
+        ]
+
+        # 建立任務列表（輪詢交錯排程）：確保每一輪同時包含三控制器，利於「同時並行」
+        tasks = []
+        timestamp_base = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ctrl_out_dirs = {}
+        for ctrl in controllers:
+            label = ctrl["label"]
+            out_dir = final_results_root / label
+            out_dir.mkdir(parents=True, exist_ok=True)
+            ctrl_out_dirs[label] = out_dir
+        for r in range(runs_per_controller):
+            for ctrl in controllers:
+                label = ctrl["label"]
+                sim_id = f"finalexp_{label}_r{r+1}_{timestamp_base}_{r}"
+                tasks.append({
+                    "controller": ctrl,
+                    "run_index": r,
+                    "sim_id": sim_id,
+                    "output_dir": ctrl_out_dirs[label]
+                })
+
+        # 執行任務（限制最大並行數），每個任務使用 evaluate.py 以 1 次運行，避免進程內部平行造成 Pickle/IO 衝突
+        def run_one_task(task):
+            env = os.environ.copy()
+            sim_id = task["sim_id"]
+            state_dir = (project_root / 'states' / 'final_exp' / sim_id)
+            state_dir.mkdir(parents=True, exist_ok=True)
+
+            env['SIMULATION_ID'] = sim_id
+            env['NETLOGO_STATE_DIR'] = str(state_dir)
+            env['NETLOGO_STATE_FILE'] = str(state_dir / f"netlogo_{sim_id}.state")
+            env['ASSIGN_ORDER_CSV'] = str(state_dir / 'assign_order.csv')
+            env['USE_EXISTING_ORDERS'] = '1'
+            env['ENABLE_TIME_SERIES'] = '1'
+            env['TS_INTERVAL'] = str(ts_interval)
+            env['ROBOT_COUNT'] = str(robot_count)
+
+            # evaluate.py 一次只跑 1 次，避免同一進程內多 run 的共享狀態影響
+            # 每個 run 使用獨立輸出子目錄，避免覆蓋
+            run_output_dir = Path(task['output_dir']) / sim_id
+            try:
+                run_output_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+
+            args = [
+                sys.executable,
+                str(evaluate_script),
+                '--eval_ticks', str(eval_ticks),
+                '--num_runs', '1',
+                '--output_dir', str(run_output_dir),
+                '--controllers', task['controller']['spec'],
+                '--robot-count', str(robot_count)
+            ]
+
+            # 使用 run 以阻塞當前「工作執行緒」，並收集返回碼
+            try:
+                completed = subprocess.run(args, env=env, capture_output=True, text=True)
+                return {
+                    'sim_id': sim_id,
+                    'controller': task['controller']['label'],
+                    'returncode': completed.returncode,
+                    'stdout': completed.stdout[-2000:],  # 尾端截取避免畫面過長
+                    'stderr': completed.stderr[-2000:]
+                }
+            except Exception as e:
+                return {
+                    'sim_id': sim_id,
+                    'controller': task['controller']['label'],
+                    'returncode': -1,
+                    'stdout': '',
+                    'stderr': str(e)
+                }
+
+        # 進度顯示與執行
+        results = []
+        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=self.console) as progress:
+            task_id = progress.add_task("正在執行最終比較實驗...", total=len(tasks))
+
+            if parallel and max_parallel and max_parallel > 1:
+                with ThreadPoolExecutor(max_workers=max_parallel) as executor:
+                    future_map = {executor.submit(run_one_task, t): t for t in tasks}
+                    for fut in as_completed(future_map):
+                        res = fut.result()
+                        results.append(res)
+                        progress.advance(task_id)
+            else:
+                for t in tasks:
+                    res = run_one_task(t)
+                    results.append(res)
+                    progress.advance(task_id)
+
+        # 簡要結果表
+        table = Table(show_header=True, header_style="bold blue")
+        table.add_column("控制器", justify="center")
+        table.add_column("成功/總數", justify="center")
+        table.add_column("輸出目錄", style="dim")
+
+        for ctrl in controllers:
+            label = ctrl['label']
+            ctrl_res = [r for r in results if r['controller'] == label]
+            success = len([r for r in ctrl_res if r['returncode'] == 0])
+            base_dir = final_results_root / label
+            table.add_row(label, f"{success}/{len(ctrl_res)}", str(base_dir))
+
+        self.console.print("\n📊 實驗完成，請至各控制器目錄查看：")
+        self.console.print(table)
+        self.console.print("\n💡 每次運行將在其專屬子目錄輸出 evaluation_results.json、evaluation_results.csv 與 SIMULATION_ID/time_series_*.csv")
+
+    def generate_final_comparison_analysis(self):
+        """生成最終比較圖表（彙整三控制器的指標與時間序列，並輸出統計與圖表）"""
+        from rich.progress import Progress, SpinnerColumn, TextColumn
+        from rich.panel import Panel
+        import subprocess
+        import sys
+        project_root = Path(__file__).parent.parent
+        analyzer_script = project_root / 'test' / 'final_comparison_analyzer.py'
+        results_root = project_root / 'test' / 'final_exp_results'
+        if not results_root.exists():
+            self.console.print("❌ 找不到最終比較實驗的結果目錄：test/final_exp_results")
+            return
+
+        # 允許使用者調整繪圖細節（可選）
+        smoothing = IntPrompt.ask("時間序列移動平均窗口（ticks, 0=不平滑）", default=0)
+
+        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=self.console) as progress:
+            task_id = progress.add_task("正在生成最終比較圖表...", total=None)
+            try:
+                args = [sys.executable, str(analyzer_script), '--root', str(results_root), '--smoothing', str(smoothing)]
+                completed = subprocess.run(args, capture_output=True, text=True)
+                progress.update(task_id, completed=1)
+                if completed.returncode == 0:
+                    out = completed.stdout.strip()
+                    self.console.print(Panel(f"✅ 生成完成\n{out}", title="最終比較圖表", padding=(1, 2)))
+                else:
+                    self.console.print(Panel(f"❌ 生成失敗\n{completed.stderr[-2000:]}", title="最終比較圖表", style="red"))
+            except Exception as e:
+                self.console.print(Panel(f"❌ 執行分析器發生錯誤：{e}", title="最終比較圖表", style="red"))
     
     def _show_baseline_test_summary(self, summary: Dict[str, Any], test_type: str):
         """顯示基準模型測試摘要"""
@@ -1295,8 +1472,82 @@ class ExperimentMenu:
                 elif choice == 8:
                     self.show_history()
                 elif choice == 9:
-                    self.train_nerl_global()
+                    self.run_final_comparison_experiment()
                 elif choice == 10:
+                    self.generate_final_comparison_analysis()
+                elif choice == 11:
+                    # 分析 NERL 訓練結果（training_runs）
+                    from rich.prompt import Prompt, IntPrompt
+                    from rich.table import Table
+                    from subprocess import run
+                    import sys
+                    project_root = Path(__file__).parent.parent
+                    base_runs_dir = project_root / 'models' / 'training_runs'
+                    user_input = Prompt.ask(
+                        "請輸入 NERL 訓練結果目錄（可填完整路徑，或僅填資料夾名）",
+                        default=str(base_runs_dir / '2025-08-17_072652_nerl_global')
+                    ).strip()
+
+                    # 解析路徑：
+                    candidates = []
+                    raw_path = Path(user_input)
+                    if raw_path.is_absolute() and raw_path.exists():
+                        candidates.append(raw_path)
+                    else:
+                        # 嘗試相對於專案根目錄
+                        rel1 = (project_root / raw_path)
+                        if rel1.exists():
+                            candidates.append(rel1)
+                        # 嘗試 models/training_runs/<name>
+                        rel2 = (base_runs_dir / raw_path.name)
+                        if rel2.exists():
+                            candidates.append(rel2)
+
+                    if candidates:
+                        resolved = candidates[0]
+                    else:
+                        # 列出可用資料夾供選擇（最新在前）
+                        if not base_runs_dir.exists():
+                            self.console.print("[red]✗ 找不到 models/training_runs 目錄[/red]")
+                            resolved = None
+                        else:
+                            run_dirs = [d for d in base_runs_dir.iterdir() if d.is_dir()]
+                            if not run_dirs:
+                                self.console.print("[red]✗ models/training_runs 下沒有任何訓練結果[/red]")
+                                resolved = None
+                            else:
+                                run_dirs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                                table = Table(show_header=True, header_style="bold magenta")
+                                table.add_column("#", justify="right")
+                                table.add_column("Run Dir")
+                                table.add_column("Modified")
+                                for idx, d in enumerate(run_dirs[:15], start=1):
+                                    ts = datetime.fromtimestamp(d.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+                                    table.add_row(str(idx), str(d.name), ts)
+                                self.console.print("找不到指定路徑，請從清單選擇：")
+                                self.console.print(table)
+                                choice = IntPrompt.ask(
+                                    "選擇要分析的訓練資料夾",
+                                    choices=[str(i) for i in range(1, min(16, len(run_dirs)+1))],
+                                    default=1
+                                )
+                                resolved = run_dirs[choice-1]
+
+                    if resolved is None:
+                        pass
+                    else:
+                        try:
+                            analyzer = Path(__file__).parent / 'nerl_training_analyzer.py'
+                            completed = run([sys.executable, str(analyzer), '--run_dir', str(resolved)], capture_output=True, text=True)
+                            if completed.returncode == 0:
+                                self.console.print(f"[green]✓ 分析完成：{completed.stdout.strip()}[/green]")
+                            else:
+                                self.console.print(f"[red]✗ 分析失敗：{completed.stderr[-2000:]}[/red]")
+                        except Exception as e:
+                            self.console.print(f"[red]✗ 執行分析器發生錯誤：{e}[/red]")
+                elif choice == 12:
+                    self.train_nerl_global()
+                elif choice == 13:
                     self.console.print("👋 再見！")
                     # 清理所有活躍會話
                     for controller in self.active_sessions.values():

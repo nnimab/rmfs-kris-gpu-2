@@ -72,7 +72,8 @@ Thumbs.db
 
 # 排除 test 目錄下的特定子目錄
 test/results/
-test/test/
+test/train_results/
+test/final_exp_results/
 
 # 備註：以下檔案會被保留
 # - generated_backlog.csv (沒有數字後綴)

@@ -126,6 +126,13 @@ class ControllerEvaluator:
             return None
         
         start_time = time.time()
+        # 是否啟用時間序列輸出（由環境變數控制）
+        enable_time_series = os.environ.get('ENABLE_TIME_SERIES', '0') == '1'
+        try:
+            time_series_interval = int(os.environ.get('TS_INTERVAL', '100'))
+        except Exception:
+            time_series_interval = 100
+        time_series_records = []  # 只在 enable_time_series 時使用
         
         try:
             # 初始化NetLogo模型
@@ -333,6 +340,36 @@ class ControllerEvaluator:
                         else:
                             metrics['avg_traffic_rate'] = 0.0
                     
+                    # 可選：時間序列採樣
+                    if enable_time_series and (tick % time_series_interval == 0 or tick == self.evaluation_ticks - 1):
+                        try:
+                            # 估算即時的機器人使用率（與總結一致的公式）
+                            current_total_robots = metrics['total_robots'] if 'total_robots' in metrics else len(warehouse.robot_manager.robots)
+                            current_robot_utilization = 0.0
+                            if current_total_robots > 0 and getattr(warehouse, '_tick', 0) > 0:
+                                current_robot_utilization = (
+                                    metrics.get('total_robot_active_time', 0) /
+                                    (warehouse._tick * current_total_robots)
+                                ) * TICK_TO_SECOND
+                            time_series_records.append({
+                                'controller_name': controller_name,
+                                'run_id': run_id + 1,
+                                'python_tick': tick,
+                                'warehouse_tick': getattr(warehouse, '_tick', 0),
+                                'completed_orders': current_completed,
+                                'total_orders': current_total,
+                                'unfinished_orders': max(current_total - current_completed, 0),
+                                'total_energy': metrics.get('total_energy_consumed', getattr(warehouse, 'total_energy', 0.0)),
+                                'signal_switch_count': metrics.get('signal_switch_count', 0),
+                                'avg_traffic_rate': metrics.get('avg_traffic_rate', 0.0),
+                                'total_robot_active_time': metrics.get('total_robot_active_time', 0),
+                                'robot_utilization': current_robot_utilization,
+                                'timestamp': datetime.now().isoformat()
+                            })
+                        except Exception:
+                            # 不讓時間序列影響主流程
+                            pass
+
                     # 記錄進度
                     if tick % 1000 == 0:
                         # 容量測試模式下，同時輸出到 stdout 供監控器讀取
@@ -396,6 +433,26 @@ class ControllerEvaluator:
                     os.remove(state_file)
                 except Exception:
                     pass
+
+            # 輸出時間序列（若啟用）
+            if enable_time_series and time_series_records:
+                try:
+                    import pandas as pd  # 就近引用以保險
+                    ts_df = pd.DataFrame(time_series_records)
+                    # 依 SIMULATION_ID 建立子目錄，避免多 run 覆蓋
+                    sim_id_env = os.environ.get('SIMULATION_ID', '')
+                    ts_dir = self.output_dir
+                    if sim_id_env:
+                        ts_dir = ts_dir / sim_id_env
+                    try:
+                        ts_dir.mkdir(parents=True, exist_ok=True)
+                    except Exception:
+                        pass
+                    ts_path = ts_dir / f"time_series_{controller_name}.csv"
+                    ts_df.to_csv(ts_path, index=False, encoding='utf-8')
+                    self.logger.info(f"時間序列數據已輸出: {ts_path}")
+                except Exception as ts_err:
+                    self.logger.warning(f"時間序列輸出失敗: {ts_err}")
             
             return result
             

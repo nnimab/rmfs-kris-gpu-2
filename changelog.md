@@ -10,6 +10,24 @@
   - 影響：訓練與評估將以累積事件為準，等待相關指標更穩健，可減少「快照」造成的偏差，提升學習穩定性。
 # Changelog
 
+## 2025-08-18 (NERL 訓練分析器重寫與選單整合)
+- 新增：重寫 `test/nerl_training_analyzer.py`，改為僅解析 `models/training_runs/<run>/genXXX/fitness_scores.json`。
+- 圖表：`fitness_over_generations.png`、每 KPI 走勢圖 `metric_<KPI>.png`、多面板 `metrics_over_generations_overview.png`、分佈圖等。
+- 統計：Early vs Late、世代趨勢 Spearman、best_fitness 與 KPI 相關 Spearman，並輸出 CSV 與 `training_analysis_report.md`。
+- 整合：`test/experiment_menu.py` 的第 11 項直接呼叫新版分析器，輸入 run 目錄即可生成分析輸出。
+
+## 2025-08-18 (最終比較實驗與時間序列輸出)
+- 新增：`test/experiment_menu.py` 增加「最終比較實驗（三控制器）」選單，可一鍵比較：
+  - NERL Global（使用 `models/final_models/nerl_global_best.pth`）
+  - Time-Based（預設參數）
+  - 無控制（none）
+- 新增：支援自訂評估 ticks、每控制器重複次數、是否並行與最大並行數；每個 run 以獨立 `SIMULATION_ID`、`NETLOGO_STATE_DIR/FILE`、`ASSIGN_ORDER_CSV` 執行，並預設 `USE_EXISTING_ORDERS=1`，避免 I/O 競態。
+- 新增：結果輸出分開至 `test/final_exp_results/<controller>/<SIMULATION_ID>/`，不混在一起，含 `evaluation_results.json/csv`。
+- 新增：`evaluate.py` 支援以環境變數啟用時間序列輸出（`ENABLE_TIME_SERIES=1`、`TS_INTERVAL=100`），輸出 `time_series_<controller>_runX.csv`，欄位含：
+  - `python_tick`、`warehouse_tick`、`completed_orders`、`total_orders`、`unfinished_orders`
+  - `total_energy`、`signal_switch_count`、`avg_traffic_rate`、`total_robot_active_time`、`robot_utilization`、`timestamp`
+- 影響：可橫向比較三控制器的整體績效與時間演進行為，並確保在並行情境下避免檔案競態。
+
 ## 2025-08-11 (選單自訂功能強化)
 - 新增：`test/experiment_menu.py` 支援 Time-Based 自訂「時間配比」清單（格式 A:B 且 A+B=100）。
 - 新增：Time-Based 與 Queue-Based 均支援自訂「機器人數量」清單（預設 `[25, 30]`，可改為自輸入）。
